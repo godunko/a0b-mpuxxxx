@@ -1,10 +1,5 @@
-------------------------------------------------------------------------------
---                                                                          --
---                           Bare Board Framework                           --
---                                                                          --
-------------------------------------------------------------------------------
 --
---  Copyright (C) 2023, Vadim Godunko <vgodunko@gmail.com>
+--  Copyright (C) 2023-2024, Vadim Godunko <vgodunko@gmail.com>
 --
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
@@ -14,7 +9,7 @@
 
 pragma Restrictions (No_Elaboration_Code);
 
-package BBF.Drivers.MPU.DMP612 is
+package A0B.MPUXXXX.DMP612 is
 
    pragma Preelaborate;
 
@@ -28,18 +23,17 @@ package BBF.Drivers.MPU.DMP612 is
 
    type Interrupt_Mode is (Gesture, Continuous);
 
-   procedure Upload_Firmware
-     (Self    : in out Abstract_MPU_Sensor'Class;
-      Success : in out Boolean);
+   procedure Initialize;
+   --  Copy unmodified firmware into the temporary buffer.
 
-   procedure Set_FIFO_Rate
-     (Self      : in out Abstract_MPU_Sensor'Class;
-      FIFO_Rate : FIFO_Rate_Type);
+   --  procedure Upload_Firmware
+   --    (Self    : in out Abstract_MPU_Sensor'Class;
+   --     Success : in out Boolean);
+
+   procedure Set_FIFO_Rate (FIFO_Rate : FIFO_Rate_Type);
    --  Must be called to enable FIFO.
 
-   procedure Set_Interrupt_Mode
-     (Self : in out Abstract_MPU_Sensor'Class;
-      Mode : Interrupt_Mode);
+   procedure Set_Interrupt_Mode (Mode : Interrupt_Mode);
    --  Default: Continuous
 
    procedure Enable_Features
@@ -51,6 +45,6 @@ package BBF.Drivers.MPU.DMP612 is
       Tap                   : Boolean;
       Android_Orientation   : Boolean);
 
-   procedure Unpack_FIFO_Packet (Self : in out Abstract_MPU_Sensor'Class);
+   --  procedure Unpack_FIFO_Packet (Self : in out Abstract_MPU_Sensor'Class);
 
-end BBF.Drivers.MPU.DMP612;
+end A0B.MPUXXXX.DMP612;

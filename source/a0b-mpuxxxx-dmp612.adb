@@ -1,21 +1,21 @@
-------------------------------------------------------------------------------
---                                                                          --
---                           Bare Board Framework                           --
---                                                                          --
-------------------------------------------------------------------------------
 --
---  Copyright (C) 2023, Vadim Godunko <vgodunko@gmail.com>
+--  Copyright (C) 2023-2024, Vadim Godunko <vgodunko@gmail.com>
 --
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
 pragma Restrictions (No_Elaboration_Code);
+pragma Ada_2022;
 
-with System.Storage_Elements;
+--  with System.Storage_Elements;
 
-package body BBF.Drivers.MPU.DMP612 is
+package body A0B.MPUXXXX.DMP612 is
 
-   Firmware_Binary : constant BBF.Unsigned_8_Array_16 :=
+   use type A0B.Types.Unsigned_32;
+
+   Firmware_Size : constant := 3_062;
+
+   Firmware_Binary : constant A0B.I2C.Unsigned_8_Array (0 .. Firmware_Size - 1) :=
      (
       --  bank # 0
       16#00#, 16#00#, 16#70#, 16#00#, 16#00#, 16#00#, 16#00#, 16#24#,
@@ -425,7 +425,7 @@ package body BBF.Drivers.MPU.DMP612 is
       16#a8#, 16#f1#, 16#ca#, 16#f2#, 16#35#, 16#f1#, 16#96#, 16#88#,
       16#a6#, 16#d9#, 16#00#, 16#d8#, 16#f1#, 16#ff#);
 
-   Firmware_Start_Address : constant := 16#0400#;
+--     Firmware_Start_Address : constant := 16#0400#;
 
    DINA20 : constant := 16#20#;
    DINA28 : constant := 16#28#;
@@ -473,13 +473,13 @@ package body BBF.Drivers.MPU.DMP612 is
 
    end Registers;
 
-   GYRO_SF : constant := 46_850_825 * 200 / DMP_SAMPLE_RATE;
+   GYRO_SF : constant := 46_850_825 * 200 / DMP_Sample_Rate;
 
    D_0_104_Address           : constant := 104;      --   68
    D_0_104_Length            : constant := 4;
 
    D_0_22_Address            : constant := 22 + 512;  --  216 | 534 = FIFO_RATE_DIV
-   D_0_22_Length             : constant := 2;
+--     D_0_22_Length             : constant := 2;
 
    CFG_MOTION_BIAS_Address   : constant := 1208;  --  4B8
    CFG_MOTION_BIAS_Length    : constant := 9;
@@ -502,6 +502,12 @@ package body BBF.Drivers.MPU.DMP612 is
    CFG_6_Address             : constant := 2753;  --  AC1 | FIFO_RATE_DIV_EN = 2756
    CFG_6_Length              : constant := 12;
 
+   Firmware_Buffer : A0B.I2C.Unsigned_8_Array (0 .. Firmware_Size - 1);
+
+   procedure Write_DMP_Memory
+     (Address : Interfaces.Unsigned_32;
+      Data    : A0B.I2C.Unsigned_8_Array);
+
    ---------------------
    -- Enable_Features --
    ---------------------
@@ -517,8 +523,6 @@ package body BBF.Drivers.MPU.DMP612 is
    is
       use type Interfaces.Unsigned_16;
 
-      Success : Boolean := True;
-
    begin
       Self.FIFO_Packet_Size := 0;
 
@@ -527,18 +531,18 @@ package body BBF.Drivers.MPU.DMP612 is
       declare
          D_0_104   : Registers.GYRO_SF_Register :=
            (GYRO_SF => GYRO_SF);
-         D_0_104_B : BBF.Unsigned_8_Array_16 (1 .. D_0_104_Length)
+         D_0_104_B : A0B.I2C.Unsigned_8_Array (1 .. D_0_104_Length)
            with Import, Address => D_0_104'Address;
 
       begin
-         Self.Write_DMP_Memory (D_0_104_Address, D_0_104_B, Success);
+         Write_DMP_Memory (D_0_104_Address, D_0_104_B);
          --  XXX This value is already set in firmware binary.
       end;
 
       --  Send sensor data to the FIFO.
 
       declare
-         RAW_DATA_EN : BBF.Unsigned_8_Array_16 (1 .. CFG_15_Length) :=
+         RAW_DATA_EN : A0B.I2C.Unsigned_8_Array (1 .. CFG_15_Length) :=
            (16#A3#, 16#A3#, 16#A3#, 16#A3#, 16#A3#, 16#A3#, 16#A3#, 16#A3#,
             16#A3#, 16#A3#);
 
@@ -561,12 +565,12 @@ package body BBF.Drivers.MPU.DMP612 is
             Self.DMP_Gyroscope_Enabled := False;
          end if;
 
-         Self.Write_DMP_Memory (CFG_15_Address, RAW_DATA_EN, Success);
+         Write_DMP_Memory (CFG_15_Address, RAW_DATA_EN);
       end;
 
       if Gyroscope /= None then
          declare
-            CFG_GYRO_RAW_DATA : BBF.Unsigned_8_Array_16
+            CFG_GYRO_RAW_DATA : A0B.I2C.Unsigned_8_Array
                                   (1 .. CFG_GYRO_RAW_DATA_Length);
 
          begin
@@ -577,13 +581,12 @@ package body BBF.Drivers.MPU.DMP612 is
                CFG_GYRO_RAW_DATA := (DINAC0, DINA80, DINAC2, DINA90);
             end if;
 
-            Self.Write_DMP_Memory
-              (CFG_GYRO_RAW_DATA_Address, CFG_GYRO_RAW_DATA, Success);
+            Write_DMP_Memory (CFG_GYRO_RAW_DATA_Address, CFG_GYRO_RAW_DATA);
          end;
       end if;
 
       declare
-         CFG_MOTION_BIAS : BBF.Unsigned_8_Array_16
+         CFG_MOTION_BIAS : A0B.I2C.Unsigned_8_Array
                              (1 .. CFG_MOTION_BIAS_Length);
 
       begin
@@ -598,8 +601,7 @@ package body BBF.Drivers.MPU.DMP612 is
                16#c7#);
          end if;
 
-         Self.Write_DMP_Memory
-           (CFG_MOTION_BIAS_Address, CFG_MOTION_BIAS, Success);
+         Write_DMP_Memory (CFG_MOTION_BIAS_Address, CFG_MOTION_BIAS);
       end;
 
       --  Quaternion
@@ -607,7 +609,7 @@ package body BBF.Drivers.MPU.DMP612 is
       Self.DMP_Quaternion_Enabled := False;
 
       declare
-         CFG_LP_QUAT : BBF.Unsigned_8_Array_16 (1 .. CFG_LP_QUAT_Length);
+         CFG_LP_QUAT : A0B.I2C.Unsigned_8_Array (1 .. CFG_LP_QUAT_Length);
 
       begin
          if Quaternion = Quaternion_3 then
@@ -619,11 +621,11 @@ package body BBF.Drivers.MPU.DMP612 is
             CFG_LP_QUAT := (16#8B#, 16#8B#, 16#8B#, 16#8B#);
          end if;
 
-         Self.Write_DMP_Memory (CFG_LP_QUAT_Address, CFG_LP_QUAT, Success);
+         Write_DMP_Memory (CFG_LP_QUAT_Address, CFG_LP_QUAT);
       end;
 
       declare
-         CFG_8 : BBF.Unsigned_8_Array_16 (1 .. CFG_8_Length);
+         CFG_8 : A0B.I2C.Unsigned_8_Array (1 .. CFG_8_Length);
 
       begin
          if Quaternion = Quaternion_6 then
@@ -635,47 +637,48 @@ package body BBF.Drivers.MPU.DMP612 is
             CFG_8 := (16#A3#, 16#A3#, 16#A3#, 16#A3#);
          end if;
 
-         Self.Write_DMP_Memory (CFG_8_Address, CFG_8, Success);
+         Write_DMP_Memory (CFG_8_Address, CFG_8);
       end;
 
       --  XXX Gestures is not supported.
    end Enable_Features;
 
+   ----------------
+   -- Initialize --
+   ----------------
+
+   procedure Initialize is
+   begin
+      Firmware_Buffer := Firmware_Binary;
+   end Initialize;
+
    -------------------
    -- Set_FIFO_Rate --
    -------------------
 
-   procedure Set_FIFO_Rate
-     (Self      : in out Abstract_MPU_Sensor'Class;
-      FIFO_Rate : FIFO_Rate_Type)
-   is
+   procedure Set_FIFO_Rate (FIFO_Rate : FIFO_Rate_Type) is
       use type Interfaces.Integer_16;
 
       D_0_22   : constant Registers.FIFO_RATE_DIV_Register :=
         (FIFO_RATE_DIV =>
            (DMP_Sample_Rate / Interfaces.Integer_16 (FIFO_Rate) - 1));
-      D_0_22_B : constant BBF.Unsigned_8_Array_16 (1 .. 2)
+      D_0_22_B : constant A0B.I2C.Unsigned_8_Array (1 .. 2)
         with Import, Address => D_0_22'Address;
-      CFG_6    : BBF.Unsigned_8_Array_16 (1 .. CFG_6_Length) :=
+      CFG_6    : constant A0B.I2C.Unsigned_8_Array (1 .. CFG_6_Length) :=
         (DINAFE, DINAF2, DINAAB, 16#C4#, DINAAA, DINAF1, DINADF, DINADF,
          16#BB#, 16#AF#, DINADF, DINADF);
-      Success : Boolean := True;
 
    begin
-      Self.Write_DMP_Memory (D_0_22_Address, D_0_22_B, Success);
-      Self.Write_DMP_Memory (CFG_6_Address, CFG_6, Success);
+      Write_DMP_Memory (D_0_22_Address, D_0_22_B);
+      Write_DMP_Memory (CFG_6_Address, CFG_6);
    end Set_FIFO_Rate;
 
    ------------------------
    -- Set_Interrupt_Mode --
    ------------------------
 
-   procedure Set_Interrupt_Mode
-     (Self : in out Abstract_MPU_Sensor'Class;
-      Mode : Interrupt_Mode)
-   is
-      B       : BBF.Unsigned_8_Array_16 (1 .. CFG_FIFO_ON_EVENT_Length);
-      Success : Boolean := True;
+   procedure Set_Interrupt_Mode (Mode : Interrupt_Mode) is
+      B : A0B.I2C.Unsigned_8_Array (1 .. CFG_FIFO_ON_EVENT_Length);
 
    begin
       case Mode is
@@ -690,90 +693,105 @@ package body BBF.Drivers.MPU.DMP612 is
                   16#da#, 16#b4#, 16#da#);
       end case;
 
-      Self.Write_DMP_Memory (CFG_FIFO_ON_EVENT_Address, B, Success);
+      Write_DMP_Memory (CFG_FIFO_ON_EVENT_Address, B);
    end Set_Interrupt_Mode;
 
-   ------------------------
-   -- Unpack_FIFO_Packet --
-   ------------------------
+--     ------------------------
+--     -- Unpack_FIFO_Packet --
+--     ------------------------
+--
+--     procedure Unpack_FIFO_Packet (Self : in out Abstract_MPU_Sensor'Class) is
+--
+--        use type System.Storage_Elements.Storage_Offset;
+--
+--        Offset : System.Storage_Elements.Storage_Offset := 0;
+--        Data   : Raw_Data renames Self.Raw_Data (not Self.User_Bank);
+--
+--     begin
+--        if Self.DMP_Quaternion_Enabled then
+--           --  XXX GNAT FSF 12.2 bug: halt on "Data.QUAT := Aux" assignment. So,
+--           --  rewrite to copy component by component.
+--
+--           declare
+--              Aux : constant MPU.Registers.DMP_QUAT_OUT_Register
+--                with Import, Address => Self.Buffer (1)'Address + Offset;
+--
+--           begin
+--              Data.QUAT.Q0 := Aux.Q0;
+--              Data.QUAT.Q1 := Aux.Q1;
+--              Data.QUAT.Q2 := Aux.Q2;
+--              Data.QUAT.Q3 := Aux.Q3;
+--              Offset       := @ + DMP_QUAT_OUT_Length;
+--           end;
+--
+--        else
+--           Data.QUAT.Q0 := 0;
+--           Data.QUAT.Q1 := 0;
+--           Data.QUAT.Q2 := 0;
+--           Data.QUAT.Q3 := 0;
+--        end if;
+--
+--        if Self.DMP_Accelerometer_Enabled then
+--           declare
+--              Aux : constant MPU.Registers.ACCEL_OUT_Register
+--                with Import, Address => Self.Buffer'Address + Offset;
+--
+--           begin
+--              Data.ACCEL := Aux;
+--              Offset     := @ + ACCEL_OUT_Length;
+--           end;
+--
+--        else
+--           Data.ACCEL := (others => 0);
+--        end if;
+--
+--        Data.TEMP := (others => 0);
+--        --  Not available in DMP mode.
+--
+--        if Self.DMP_Gyroscope_Enabled then
+--           declare
+--              Aux : constant MPU.Registers.GYRO_OUT_Register
+--                with Import, Address => Self.Buffer'Address + Offset;
+--
+--           begin
+--              Data.GYRO := Aux;
+--              Offset    := @ + GYRO_OUT_Length;
+--           end;
+--
+--        else
+--           Data.GYRO := (others => 0);
+--        end if;
+--
+--        --  ??? Gesture into not supported
+--
+--        Data.Timestamp := Self.Clocks.Clock;
+--        Self.User_Bank := not @;
+--     end Unpack_FIFO_Packet;
+--
+--     ---------------------
+--     -- Upload_Firmware --
+--     ---------------------
+--
+--     procedure Upload_Firmware
+--       (Self    : in out Abstract_MPU_Sensor'Class;
+--        Success : in out Boolean) is
+--     begin
+--        Self.Upload_Firmware (Firmware_Binary, Firmware_Start_Address, Success);
+--     end Upload_Firmware;
 
-   procedure Unpack_FIFO_Packet (Self : in out Abstract_MPU_Sensor'Class) is
+   ----------------------
+   -- Write_DMP_Memory --
+   ----------------------
 
-      use type System.Storage_Elements.Storage_Offset;
-
-      Offset : System.Storage_Elements.Storage_Offset := 0;
-      Data   : Raw_Data renames Self.Raw_Data (not Self.User_Bank);
-
+   procedure Write_DMP_Memory
+     (Address : Interfaces.Unsigned_32;
+      Data    : A0B.I2C.Unsigned_8_Array) is
    begin
-      if Self.DMP_Quaternion_Enabled then
-         --  XXX GNAT FSF 12.2 bug: halt on "Data.QUAT := Aux" assignment. So,
-         --  rewrite to copy component by component.
+      Firmware_Buffer (Address .. Address + Data'Length - 1) := Data;
+      --
+      --  for J of Data'Range loop
+      --     Firmware_Buffer (Firmware_Buffer'First + J - Data'First)
+      --  end loop;
+   end Write_DMP_Memory;
 
-         declare
-            Aux : constant MPU.Registers.DMP_QUAT_OUT_Register
-              with Import, Address => Self.Buffer (1)'Address + Offset;
-
-         begin
-            Data.QUAT.Q0 := Aux.Q0;
-            Data.QUAT.Q1 := Aux.Q1;
-            Data.QUAT.Q2 := Aux.Q2;
-            Data.QUAT.Q3 := Aux.Q3;
-            Offset       := @ + DMP_QUAT_OUT_Length;
-         end;
-
-      else
-         Data.QUAT.Q0 := 0;
-         Data.QUAT.Q1 := 0;
-         Data.QUAT.Q2 := 0;
-         Data.QUAT.Q3 := 0;
-      end if;
-
-      if Self.DMP_Accelerometer_Enabled then
-         declare
-            Aux : constant MPU.Registers.ACCEL_OUT_Register
-              with Import, Address => Self.Buffer'Address + Offset;
-
-         begin
-            Data.ACCEL := Aux;
-            Offset     := @ + ACCEL_OUT_Length;
-         end;
-
-      else
-         Data.ACCEL := (others => 0);
-      end if;
-
-      Data.TEMP := (others => 0);
-      --  Not available in DMP mode.
-
-      if Self.DMP_Gyroscope_Enabled then
-         declare
-            Aux : constant MPU.Registers.GYRO_OUT_Register
-              with Import, Address => Self.Buffer'Address + Offset;
-
-         begin
-            Data.GYRO := Aux;
-            Offset    := @ + GYRO_OUT_Length;
-         end;
-
-      else
-         Data.GYRO := (others => 0);
-      end if;
-
-      --  ??? Gesture into not supported
-
-      Data.Timestamp := Self.Clocks.Clock;
-      Self.User_Bank := not @;
-   end Unpack_FIFO_Packet;
-
-   ---------------------
-   -- Upload_Firmware --
-   ---------------------
-
-   procedure Upload_Firmware
-     (Self    : in out Abstract_MPU_Sensor'Class;
-      Success : in out Boolean) is
-   begin
-      Self.Upload_Firmware (Firmware_Binary, Firmware_Start_Address, Success);
-   end Upload_Firmware;
-
-end BBF.Drivers.MPU.DMP612;
+end A0B.MPUXXXX.DMP612;

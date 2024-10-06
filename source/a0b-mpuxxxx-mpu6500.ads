@@ -1,10 +1,5 @@
-------------------------------------------------------------------------------
---                                                                          --
---                           Bare Board Framework                           --
---                                                                          --
-------------------------------------------------------------------------------
 --
---  Copyright (C) 2019-2023, Vadim Godunko <vgodunko@gmail.com>
+--  Copyright (C) 2019-2024, Vadim Godunko <vgodunko@gmail.com>
 --
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
@@ -13,9 +8,7 @@
 
 pragma Restrictions (No_Elaboration_Code);
 
-with BBF.Delays;
-
-package BBF.Drivers.MPU.MPU6500 is
+package A0B.MPUXXXX.MPU6500 is
 
    pragma Preelaborate;
 
@@ -23,7 +16,6 @@ package BBF.Drivers.MPU.MPU6500 is
 
    not overriding procedure Initialize
      (Self    : in out MPU6500_Sensor;
-      Delays  : not null access BBF.Delays.Delay_Controller'Class;
       Success : in out Boolean);
 
 private
@@ -33,4 +25,4 @@ private
    overriding function Is_6500_9250
      (Self : MPU6500_Sensor) return Boolean is (True);
 
-end BBF.Drivers.MPU.MPU6500;
+end A0B.MPUXXXX.MPU6500;

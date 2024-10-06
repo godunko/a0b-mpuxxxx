@@ -1,10 +1,5 @@
-------------------------------------------------------------------------------
---                                                                          --
---                           Bare Board Framework                           --
---                                                                          --
-------------------------------------------------------------------------------
 --
---  Copyright (C) 2019-2023, Vadim Godunko <vgodunko@gmail.com>
+--  Copyright (C) 2019-2024, Vadim Godunko <vgodunko@gmail.com>
 --
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
@@ -13,6 +8,6 @@
 
 pragma Restrictions (No_Elaboration_Code);
 
-with BBF.Drivers.MPU.MPU6500.MPU9250;
+with A0B.MPUXXXX.MPU6500.MPU9250;
 
-package BBF.Drivers.MPU9250 renames BBF.Drivers.MPU.MPU6500.MPU9250;
+package A0B.MPU9250 renames A0B.MPUXXXX.MPU6500.MPU9250;

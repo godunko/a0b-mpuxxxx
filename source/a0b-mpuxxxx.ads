@@ -1,10 +1,5 @@
-------------------------------------------------------------------------------
---                                                                          --
---                           Bare Board Framework                           --
---                                                                          --
-------------------------------------------------------------------------------
 --
---  Copyright (C) 2019-2023, Vadim Godunko <vgodunko@gmail.com>
+--  Copyright (C) 2019-2024, Vadim Godunko <vgodunko@gmail.com>
 --
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
@@ -15,13 +10,16 @@
 pragma Restrictions (No_Elaboration_Code);
 
 private with Interfaces;
+private with System;
 
-with BBF.Clocks;
-with BBF.Delays;
-with BBF.External_Interrupts;
-with BBF.I2C.Master;
+with A0B.Callbacks;
+with A0B.EXTI;
+with A0B.I2C.Device_Drivers_8;
+private with A0B.Time;
+private with A0B.Timer;
+private with A0B.Types;
 
-package BBF.Drivers.MPU is
+package A0B.MPUXXXX is
 
    pragma Preelaborate;
 
@@ -36,12 +34,13 @@ package BBF.Drivers.MPU is
    type Temperature is delta 0.001 range -40.0 .. 85.0;
 
    type Abstract_MPU_Sensor
-     (Bus    : not null access BBF.I2C.Master.I2C_Master_Controller'Class;
-      Device : BBF.I2C.Device_Address;
-      --  Default device address is 16#68#. Sensor can be configured to 16#69#.
-      Pin    : not null access BBF.External_Interrupts.Pin'Class;
-      Clocks : not null access BBF.Clocks.Real_Time_Clock_Controller'Class)
-       is abstract tagged limited private;
+     (Controller : not null access A0B.I2C.I2C_Bus_Master'Class;
+      Address    : A0B.I2C.Device_Address;
+      --  Default device address is 16#68#. Sensor can be configured to
+      --  use 16#69#.
+      INT_Pin    : not null access A0B.EXTI.External_Interrupt_Line'Class)
+      --  Pin must be configured to generate interrupt on falling edge.
+     is abstract new A0B.I2C.Device_Drivers_8.I2C_Device_Driver with private;
 
    type Accelerometer_Range_Type is
      (FSR_2G,
@@ -63,12 +62,12 @@ package BBF.Drivers.MPU is
 
    procedure Configure
      (Self                : in out Abstract_MPU_Sensor'Class;
-      Delays              : not null access BBF.Delays.Delay_Controller'Class;
       Accelerometer_Range : Accelerometer_Range_Type;
       Gyroscope_Range     : Gyroscope_Range_Type;
       Temperature         : Boolean;
       Filter              : Boolean;
       Sample_Rate         : Sample_Rate_Type;
+      Finished            : A0B.Callbacks.Callback;
       Success             : in out Boolean);
    --  Configure sensor in raw data mode, with low pass filter.
    --
@@ -78,17 +77,20 @@ package BBF.Drivers.MPU is
 
    procedure Configure
      (Self      : in out Abstract_MPU_Sensor'Class;
-      Delays    : not null access BBF.Delays.Delay_Controller'Class;
       FIFO_Rate : FIFO_Rate_Type;
+      Finished  : A0B.Callbacks.Callback;
       Success   : in out Boolean);
    --  Configure sensor in DMP mode.
 
    procedure Enable
-     (Self   : in out Abstract_MPU_Sensor'Class;
-      Delays : not null access BBF.Delays.Delay_Controller'Class);
+     (Self     : in out Abstract_MPU_Sensor'Class;
+      Finished : A0B.Callbacks.Callback;
+      Success  : in out Boolean);
    --  Enables data load from the sensor.
 
 private
+
+   use A0B.I2C.Device_Drivers_8;
 
    package Registers is
 
@@ -105,7 +107,7 @@ private
         with Size => 3;
       --  Value 7 used by MPU6500/MPU9215 only
 
-      type EXT_SYNC_SET_TYpe is
+      type EXT_SYNC_SET_Type is
         (Disabled,
          TEMP_OUT_L,
          GYRO_XOUT_L,
@@ -350,30 +352,30 @@ private
       end record
         with Pack, Object_Size => 8;
 
-      --  DMP: BANK_SEL (109..110/6D..6E)
-
-      type BANK_SEL_Register is record
-         Address : Interfaces.Unsigned_16;
-      end record
-        with Pack,
-             Object_Size          => 16,
-             Bit_Order            => System.High_Order_First,
-             Scalar_Storage_Order => System.High_Order_First;
-
-      --  DMP: PRGM_START (112..113/70..71)
-
-      type PRGM_START_Register is record
-         Address : Interfaces.Unsigned_16;
-      end record
-        with Pack,
-             Object_Size          => 16,
-             Bit_Order            => System.High_Order_First,
-             Scalar_Storage_Order => System.High_Order_First;
+   --     --  DMP: BANK_SEL (109..110/6D..6E)
+   --
+   --     type BANK_SEL_Register is record
+   --        Address : Interfaces.Unsigned_16;
+   --     end record
+   --       with Pack,
+   --            Object_Size          => 16,
+   --            Bit_Order            => System.High_Order_First,
+   --            Scalar_Storage_Order => System.High_Order_First;
+   --
+   --     --  DMP: PRGM_START (112..113/70..71)
+   --
+   --     type PRGM_START_Register is record
+   --        Address : Interfaces.Unsigned_16;
+   --     end record
+   --       with Pack,
+   --            Object_Size          => 16,
+   --            Bit_Order            => System.High_Order_First,
+   --            Scalar_Storage_Order => System.High_Order_First;
 
       --  FIFO_COUNT (114-115/72-73)
 
       type FIFO_COUNT_Register is record
-         Value : BBF.Unsigned_16;
+         Value : A0B.Types.Unsigned_16;
       end record
         with Pack,
              Object_Size          => 16,
@@ -398,65 +400,93 @@ private
    --  AK8975_Address : constant BBF.I2C.Device_Address := 16#0C#;
 
    MPU6050_WHOAMI : constant := 16#68#;
-   MPU6500_WHOAMI : constant := 16#70#;
-   MPU9250_WHOAMI : constant := 16#71#;
+   --  MPU6500_WHOAMI : constant := 16#70#;
+   --  MPU9250_WHOAMI : constant := 16#71#;
 
-   SMPLRT_DIV_Address        : constant BBF.I2C.Internal_Address_8 := 16#19#;
-   CONFIG_Address            : constant BBF.I2C.Internal_Address_8 := 16#1A#;
-   GYRO_CONFIG_Address       : constant BBF.I2C.Internal_Address_8 := 16#1B#;
-   ACCEL_CONFIG_Address      : constant BBF.I2C.Internal_Address_8 := 16#1C#;
-   MPU6500_ACCEL_CONFIG_2_Address :
-                               constant BBF.I2C.Internal_Address_8 := 16#1D#;
+   SMPLRT_DIV_Address             : constant Register_Address := 16#19#;
+   --  CONFIG_Address                 : constant Register_Address := 16#1A#;
+   --  GYRO_CONFIG_Address            : constant Register_Address := 16#1B#;
+   --  ACCEL_CONFIG_Address           : constant Register_Address := 16#1C#;
+   --  MPU6500_ACCEL_CONFIG_2_Address : constant Register_Address := 16#1D#;
 
-   FIFO_EN_Address           : constant BBF.I2C.Internal_Address_8 := 16#23#;
+   FIFO_EN_Address                : constant Register_Address := 16#23#;
 
-   INT_PIN_CFG_Address       : constant BBF.I2C.Internal_Address_8 := 16#37#;
-   INT_ENABLE_Address        : constant BBF.I2C.Internal_Address_8 := 16#38#;
+   INT_PIN_CFG_Address            : constant Register_Address := 16#37#;
+   INT_ENABLE_Address             : constant Register_Address := 16#38#;
 
-   INT_STATUS_Address        : constant BBF.I2C.Internal_Address_8 := 16#3A#;
+   INT_STATUS_Address             : constant Register_Address := 16#3A#;
 
-   ACCEL_OUT_Address         : constant BBF.I2C.Internal_Address_8 := 16#3B#;
-   ACCEL_OUT_Length          : constant                            := 6;
-   TEMP_OUT_Address          : constant BBF.I2C.Internal_Address_8 := 16#41#;
-   TEMP_OUT_Length           : constant                            := 2;
-   GYRO_OUT_Address          : constant BBF.I2C.Internal_Address_8 := 16#43#;
-   GYRO_OUT_Length           : constant                            := 6;
+   --  ACCEL_OUT_Address              : constant Register_Address := 16#3B#;
+   ACCEL_OUT_Length               : constant                  := 6;
+   --  TEMP_OUT_Address               : constant Register_Address := 16#41#;
+   TEMP_OUT_Length                : constant                  := 2;
+   --  GYRO_OUT_Address               : constant Register_Address := 16#43#;
+   GYRO_OUT_Length                : constant                  := 6;
 
-   SIGNAL_PATH_RESET_Address : constant BBF.I2C.Internal_Address_8 := 16#68#;
+   SIGNAL_PATH_RESET_Address      : constant Register_Address := 16#68#;
 
-   USER_CTRL_Address         : constant BBF.I2C.Internal_Address_8 := 16#6A#;
-   PWR_MGMT_1_Address        : constant BBF.I2C.Internal_Address_8 := 16#6B#;
-   PWR_MGMT_2_Address        : constant BBF.I2C.Internal_Address_8 := 16#6C#;
-   DMP_BANK_SEL_Address      : constant BBF.I2C.Internal_Address_8 := 16#6D#;
-   DMP_BANK_SEL_Length       : constant                            := 2;
-   DMP_MEM_R_W_Address       : constant BBF.I2C.Internal_Address_8 := 16#6F#;
-   DMP_PRGM_START_Address    : constant BBF.I2C.Internal_Address_8 := 16#70#;
-   DMP_PRGM_START_Length     : constant                            := 2;
-   FIFO_COUNT_Address        : constant BBF.I2C.Internal_Address_8 := 16#72#;
-   FIFO_COUNT_Length         : constant                            := 2;
-   FIFO_R_W_Address          : constant BBF.I2C.Internal_Address_8 := 16#74#;
-   WHO_AM_I_Address          : constant BBF.I2C.Internal_Address_8 := 16#75#;
+   USER_CTRL_Address              : constant Register_Address := 16#6A#;
+   PWR_MGMT_1_Address             : constant Register_Address := 16#6B#;
+   --  PWR_MGMT_2_Address             : constant Register_Address := 16#6C#;
+   --  DMP_BANK_SEL_Address           : constant Register_Address := 16#6D#;
+   --  DMP_BANK_SEL_Length            : constant                  := 2;
+   --  DMP_MEM_R_W_Address            : constant Register_Address := 16#6F#;
+   --  DMP_PRGM_START_Address         : constant Register_Address := 16#70#;
+   --  DMP_PRGM_START_Length          : constant                  := 2;
+   FIFO_COUNT_Address             : constant Register_Address := 16#72#;
+   FIFO_COUNT_Length              : constant                  := 2;
+   FIFO_R_W_Address               : constant Register_Address := 16#74#;
+   WHO_AM_I_Address               : constant Register_Address := 16#75#;
 
-   DMP_QUAT_OUT_Length       : constant                            := 16;
+   --  DMP_QUAT_OUT_Length            : constant                  := 16;
 
    type Raw_Data is record
       ACCEL     : Registers.ACCEL_OUT_Register;
       TEMP      : Registers.TEMP_OUT_Register;
       GYRO      : Registers.GYRO_OUT_Register;
       QUAT      : Registers.DMP_QUAT_OUT_Register;
-      Timestamp : BBF.Clocks.Time;
+      Timestamp : A0B.Time.Monotonic_Time;
    end record
      with Object_Size => 304;
 
    type Raw_Data_Array is array (Boolean) of Raw_Data;
 
+   type States is
+     (Initial,
+      Initialization_WHOAMI_Check,
+      Initialization_Device_Reset,
+      Initialization_Device_Reset_Delay,
+      Initialization_Signal_Path_Reset,
+      Initialization_Signal_Path_Reset_Delay,
+      Initialization_Wakeup,
+      Configuration_CONFIG,
+      Configuration_PWR_MGMT,
+      Configuration_Delay,
+      Enable_INT_ENABLE_Disable,
+      Enable_FIFO_EN_Disable,
+      Enable_USER_CTRL_Disable,
+      Enable_Reset,
+      Enable_Reset_Delay,
+      Enable_USER_CTRL_Enable,
+      Enable_INT_Enable,
+      Enable_FIFO_EN_Enable,
+      Interrupt_INT_STATUS,
+      Interrupt_FIFO_COUNT,
+      Interrupt_FIFO_R_W,
+      Ready);
+
    type Abstract_MPU_Sensor
-     (Bus    : not null access BBF.I2C.Master.I2C_Master_Controller'Class;
-      Device : BBF.I2C.Device_Address;
-      Pin    : not null access BBF.External_Interrupts.Pin'Class;
-      Clocks : not null access BBF.Clocks.Real_Time_Clock_Controller'Class)
-   is abstract tagged limited record
+     (Controller : not null access A0B.I2C.I2C_Bus_Master'Class;
+      Address    : A0B.I2C.Device_Address;
+      INT_Pin    : not null access A0B.EXTI.External_Interrupt_Line'Class)
+     is abstract new A0B.I2C.Device_Drivers_8.I2C_Device_Driver
+                       (Controller => Controller,
+                        Address    => Address) with
+   record
+      State                     : States  := Initial;
       Initialized               : Boolean := False;
+
+      WHOAMI                    : A0B.Types.Unsigned_8;
 
       Accelerometer_Enabled     : Boolean := False;
       Gyroscope_Enabled         : Boolean := False;
@@ -468,7 +498,7 @@ private
       DMP_Quaternion_Enabled    : Boolean := False;
       DMP_Gesture_Enabled       : Boolean := False;
 
-      FIFO_Packet_Size          : BBF.Unsigned_16 := 0;
+      FIFO_Packet_Size          : A0B.Types.Unsigned_16 := 0;
       --  Size of the FIFO packet to download and decode. It depends of
       --  configuration of the sensor.
 
@@ -478,7 +508,12 @@ private
       --  another one asynchronous read handler. Banks are switched by the
       --  handler after successful load of new packet of data.
 
-      Buffer                    : BBF.Unsigned_8_Array_16 (1 .. 32);
+      Timeout                   : aliased A0B.Timer.Timeout_Control_Block;
+
+      Finished                  : A0B.Callbacks.Callback;
+      --  Callback to execute then operation finished.
+
+      Transfer_Buffer           : A0B.I2C.Unsigned_8_Array (0 .. 31);
       --  Storage for IO operations:
       --   - firmware upload buffer
       --     - size should be power of two to avoid cross of bank boundary
@@ -491,13 +526,15 @@ private
       --     - accelerometer data (6 bytes)
       --     - gyroscope data (6 bytes)
       --     - questure data (4 bytes)
+      Transfer_Status           : aliased
+        A0B.I2C.Device_Drivers_8.Transaction_Status;
    end record;
 
    procedure Internal_Initialize
-     (Self    : in out Abstract_MPU_Sensor'Class;
-      Delays  : not null access BBF.Delays.Delay_Controller'Class;
-      WHOAMI  : BBF.Unsigned_8;
-      Success : in out Boolean);
+     (Self     : in out Abstract_MPU_Sensor'Class;
+      WHOAMI   : A0B.Types.Unsigned_8;
+      Finished : A0B.Callbacks.Callback;
+      Success  : in out Boolean);
    --  First step of the initialization procedure. Probe controller and check
    --  chip identifier.
 
@@ -517,27 +554,27 @@ private
      (Self : Abstract_MPU_Sensor'Class;
       Raw  : Interfaces.Integer_16) return Angular_Velosity;
 
-   -------------------
-   --  API for DMP  --
-   -------------------
+   --  -------------------
+   --  --  API for DMP  --
+   --  -------------------
+   --
+   --  procedure Upload_Firmware
+   --    (Self     : in out Abstract_MPU_Sensor'Class;
+   --     Firmware : A0B.I2C.Unsigned_8_Array;
+   --     Address  : Interfaces.Unsigned_16;
+   --     Success  : in out Boolean);
+   --  --  Upload firmware to sensor. It is synchronous operation.
+   --
+   --  procedure Write_DMP_Memory
+   --    (Self    : in out Abstract_MPU_Sensor'Class;
+   --     Address : Interfaces.Unsigned_16;
+   --     Data    : A0B.I2C.Unsigned_8_Array;
+   --     Success : in out Boolean);
+   --
+   --  procedure Read_DMP_Memory
+   --    (Self    : in out Abstract_MPU_Sensor'Class;
+   --     Address : Interfaces.Unsigned_16;
+   --     Data    : out A0B.I2C.Unsigned_8_Array;
+   --     Success : in out Boolean);
 
-   procedure Upload_Firmware
-     (Self     : in out Abstract_MPU_Sensor'Class;
-      Firmware : BBF.Unsigned_8_Array_16;
-      Address  : Interfaces.Unsigned_16;
-      Success  : in out Boolean);
-   --  Upload firmware to sensor. It is synchronous operation.
-
-   procedure Write_DMP_Memory
-     (Self    : in out Abstract_MPU_Sensor'Class;
-      Address : Interfaces.Unsigned_16;
-      Data    : BBF.Unsigned_8_Array_16;
-      Success : in out Boolean);
-
-   procedure Read_DMP_Memory
-     (Self    : in out Abstract_MPU_Sensor'Class;
-      Address : Interfaces.Unsigned_16;
-      Data    : out BBF.Unsigned_8_Array_16;
-      Success : in out Boolean);
-
-end BBF.Drivers.MPU;
+end A0B.MPUXXXX;

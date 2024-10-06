@@ -1,24 +1,21 @@
-------------------------------------------------------------------------------
---                                                                          --
---                           Bare Board Framework                           --
---                                                                          --
-------------------------------------------------------------------------------
 --
---  Copyright (C) 2019-2023, Vadim Godunko <vgodunko@gmail.com>
+--  Copyright (C) 2019-2024, Vadim Godunko <vgodunko@gmail.com>
 --
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
 pragma Restrictions (No_Elaboration_Code);
+pragma Ada_2022;
 
 with Ada.Unchecked_Conversion;
-with System.Address_To_Access_Conversions;
+--  with System.Address_To_Access_Conversions;
 with System.Storage_Elements;
 
-with BBF.Drivers.MPU.DMP612;
-with BBF.External_Interrupts;
+with A0B.Callbacks.Generic_Non_Dispatching;
+with A0B.MPUXXXX.DMP612;
+with A0B.Time.Clock;
 
-package body BBF.Drivers.MPU is
+package body A0B.MPUXXXX is
 
    type CONFIG_Resgisters is record
       SMPLRT_DIV     : Registers.SMPLRT_DIV_Register;
@@ -50,17 +47,120 @@ package body BBF.Drivers.MPU is
       Sample_Rate         : Sample_Rate_Type);
    --  Compute value of CONFIG registers on given parameters.
 
-   procedure On_Interrupt (Closure : System.Address);
+   procedure On_Interrupt (Self : in out Abstract_MPU_Sensor'Class);
 
-   procedure On_FIFO_Count_Read (Closure : System.Address);
+   package On_Interrupt_Callbacks is
+     new A0B.Callbacks.Generic_Non_Dispatching
+           (Abstract_MPU_Sensor, On_Interrupt);
 
-   procedure On_FIFO_Data_Read (Closure : System.Address);
+   --  procedure On_FIFO_Count_Read (Closure : System.Address);
+   --
+   --  procedure On_FIFO_Data_Read (Closure : System.Address);
+   --
+   --  package Conversions is
+   --    new System.Address_To_Access_Conversions
+   --          (Object => Abstract_MPU_Sensor'Class);
 
-   package Conversions is
-     new System.Address_To_Access_Conversions
-           (Object => Abstract_MPU_Sensor'Class);
+   procedure On_Operation_Finished (Self : in out Abstract_MPU_Sensor'Class);
 
-   DMP_Bank_Size : constant := 256;
+   package On_Operation_Finished_Callbacks is
+     new A0B.Callbacks.Generic_Non_Dispatching
+           (Abstract_MPU_Sensor, On_Operation_Finished);
+
+   procedure WHOAMI_Check_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      WHOAMI  : A0B.Types.Unsigned_8;
+      Success : in out Boolean);
+
+   procedure WHOAMI_Check_Complete
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Device_Reset_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Device_Reset_Delay_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Signal_Path_Reset_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Signal_Path_Reset_Delay_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Wakeup_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure CONFIG_Initiate
+     (Self                : in out Abstract_MPU_Sensor'Class;
+      Accelerometer_Range : Accelerometer_Range_Type;
+      Gyroscope_Range     : Gyroscope_Range_Type;
+      Filter              : Boolean;
+      Sample_Rate         : Sample_Rate_Type;
+      Success             : in out Boolean);
+
+   procedure PWR_MGMT_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Configuration_Delay_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure INT_ENABLE_Disable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure FIFO_EN_Disable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure USER_CTRL_Disable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Reset_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Reset_Delay_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure USER_CTRL_Enable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure INT_Enable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure FIFO_EN_Enable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure INT_STATUS_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure INT_STATUS_Complete_FIFO_COUNT_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure FIFO_COUNT_Complete_FIFO_R_W_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure FIFO_R_W_Complete
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   --  DMP_Bank_Size : constant := 256;
 
    --------------------
    -- Compute_CONFIG --
@@ -74,6 +174,8 @@ package body BBF.Drivers.MPU is
       Filter              : Boolean;
       Sample_Rate         : Sample_Rate_Type)
    is
+      pragma Unreferenced (Self);
+
       use type Interfaces.Unsigned_16;
 
       SMPLRT_DIV         : constant Interfaces.Unsigned_8 :=
@@ -160,84 +262,110 @@ package body BBF.Drivers.MPU is
       --  MPU6050/9150 and not useful for my purposes.
    end Compute_CONFIG;
 
-   ---------------
-   -- Configure --
-   ---------------
+   ---------------------
+   -- CONFIG_Initiate --
+   ---------------------
 
-   procedure Configure
+   procedure CONFIG_Initiate
      (Self                : in out Abstract_MPU_Sensor'Class;
-      Delays              : not null access BBF.Delays.Delay_Controller'Class;
       Accelerometer_Range : Accelerometer_Range_Type;
       Gyroscope_Range     : Gyroscope_Range_Type;
-      Temperature         : Boolean;
       Filter              : Boolean;
       Sample_Rate         : Sample_Rate_Type;
       Success             : in out Boolean)
    is
-      use type Interfaces.Unsigned_16;
-
-      CONFIG     : CONFIG_Resgisters;
-      CONFIG_B   : BBF.Unsigned_8_Array_16 (1 .. 5)
-        with Import, Convention => Ada, Address => CONFIG'Address;
-
-      PWR_MGMT   : constant PWR_MGMT_Registers :=
-        (PWR_MGMT_1 =>
-           (CLKSEL   =>
-                (if Gyroscope_Range /= Disabled
-                   then Registers.PLL_X
-                   else Registers.Internal),
-                 --  On MPU6500 Auto (PLL_X) can be used always
-            TEMP_DIS => not Temperature,
-            SLEEP    =>
-              Accelerometer_Range = Disabled
-                and Gyroscope_Range = Disabled
-                and not Temperature,
-            others => <>),
-         PWR_MGMT_2 =>
-           (STBY_ZG => Gyroscope_Range = Disabled,
-            STBY_YG => Gyroscope_Range = Disabled,
-            STBY_XG => Gyroscope_Range = Disabled,
-            STBY_ZA => Accelerometer_Range = Disabled,
-            STBY_YA => Accelerometer_Range = Disabled,
-            STBY_XA => Accelerometer_Range = Disabled,
-            others  => <>));
-      PWR_MGMT_B : constant BBF.Unsigned_8_Array_16 (1 .. 2)
-        with Import, Convention => Ada, Address => PWR_MGMT'Address;
+      CONFIG   : CONFIG_Resgisters
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer   : A0B.I2C.Unsigned_8_Array
+                   (0 .. (if Self.Is_6500_9250 then 4 else 3))
+        with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
       if not Success then
          return;
       end if;
 
-      if not Self.Initialized then
+      Self.State := Configuration_CONFIG;
+
+      Self.Compute_CONFIG
+        (CONFIG, Accelerometer_Range, Gyroscope_Range, Filter, Sample_Rate);
+
+      if Self.DMP_Enabled then
+         CONFIG.CONFIG.DLPF_CFG := 3;
+         --  Application Notes for DMP recommends to use 42 Hz, while library
+         --  configure it to 98 Hz. Use value from Application Notes.
+      end if;
+
+      Self.Write
+        (Address      => SMPLRT_DIV_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end CONFIG_Initiate;
+
+   ----------------------------------
+   -- Configuration_Delay_Initiate --
+   ----------------------------------
+
+   procedure Configuration_Delay_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      pragma Warnings (Off, Success);
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Configuration_Delay;
+
+      A0B.Timer.Enqueue
+        (Timeout  => Self.Timeout,
+         Callback => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         T        => A0B.Time.Milliseconds (50));
+   end Configuration_Delay_Initiate;
+
+   ---------------
+   -- Configure --
+   ---------------
+
+   procedure Configure
+     (Self                : in out Abstract_MPU_Sensor'Class;
+      Accelerometer_Range : Accelerometer_Range_Type;
+      Gyroscope_Range     : Gyroscope_Range_Type;
+      Temperature         : Boolean;
+      Filter              : Boolean;
+      Sample_Rate         : Sample_Rate_Type;
+      Finished            : A0B.Callbacks.Callback;
+      Success             : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_16;
+
+   begin
+      if not Success or Self.State /= Ready then
          Success := False;
 
          return;
       end if;
 
-      Self.DMP_Enabled := False;
-
-      Self.Compute_CONFIG
-        (CONFIG, Accelerometer_Range, Gyroscope_Range, Filter, Sample_Rate);
-
-      Self.Bus.Write_Synchronous
-        (Self.Device,
-         SMPLRT_DIV_Address,
-         CONFIG_B (1 .. (if Self.Is_6500_9250 then 5 else 4)),
-         Success);
-      Self.Bus.Write_Synchronous
-        (Self.Device, PWR_MGMT_1_Address, PWR_MGMT_B, Success);
-
-      Delays.Delay_Milliseconds (50);
-
+      Self.Finished              := Finished;
       Self.Accelerometer_Enabled := Accelerometer_Range /= Disabled;
       Self.Gyroscope_Enabled     := Gyroscope_Range /= Disabled;
       Self.Temperature_Enabled   := Temperature;
-
+      Self.DMP_Enabled           := False;
       Self.FIFO_Packet_Size :=
         (if Self.Accelerometer_Enabled then 6 else 0)
           + (if Self.Gyroscope_Enabled then 6 else 0)
           + (if Self.Temperature_Enabled then 2 else 0);
+
+      Self.CONFIG_Initiate
+        (Accelerometer_Range => Accelerometer_Range,
+         Gyroscope_Range     => Gyroscope_Range,
+         Filter              => Filter,
+         Sample_Rate         => Sample_Rate,
+         Success             => Success);
    end Configure;
 
    ---------------
@@ -246,73 +374,25 @@ package body BBF.Drivers.MPU is
 
    procedure Configure
      (Self      : in out Abstract_MPU_Sensor'Class;
-      Delays    : not null access BBF.Delays.Delay_Controller'Class;
       FIFO_Rate : FIFO_Rate_Type;
-      Success   : in out Boolean)
-   is
-      CONFIG     : CONFIG_Resgisters;
-      CONFIG_B   : BBF.Unsigned_8_Array_16 (1 .. 5)
-        with Import, Convention => Ada, Address => CONFIG'Address;
-
-      PWR_MGMT   : constant PWR_MGMT_Registers :=
-        (PWR_MGMT_1 =>
-           (CLKSEL => Registers.Internal,
-            SLEEP  => False,
-            others => <>),
-         PWR_MGMT_2 =>
-           (STBY_ZG => False,
-            STBY_YG => False,
-            STBY_XG => False,
-            STBY_ZA => False,
-            STBY_YA => False,
-            STBY_XA => False,
-            others  => <>));
-      --  Recommended by Application Notes.
-      PWR_MGMT_B : constant BBF.Unsigned_8_Array_16 (1 .. 2)
-        with Import, Convention => Ada, Address => PWR_MGMT'Address;
-
+      Finished  : A0B.Callbacks.Callback;
+      Success   : in out Boolean) is
    begin
-      if not Success then
-         return;
-      end if;
-
-      if not Self.Initialized then
+      if not Success or Self.State /= Ready then
          Success := False;
 
          return;
       end if;
 
-      Self.DMP_Enabled := True;
-
-      Self.Compute_CONFIG
-        (CONFIG,
-         FSR_2G,
-         FSR_2000DPS,
-         True,
-         DMP612.DMP_Sample_Rate);
-      CONFIG.CONFIG.DLPF_CFG := 3;
-      --  Application Notes for DMP recommends to use 42 Hz, while library
-      --  configure it to 98 Hz. Use value from Application Notes.
-
-      Self.Bus.Write_Synchronous
-        (Self.Device,
-         SMPLRT_DIV_Address,
-         CONFIG_B (1 .. (if Self.Is_6500_9250 then 5 else 4)),
-         Success);
-      Self.Bus.Write_Synchronous
-        (Self.Device, PWR_MGMT_1_Address, PWR_MGMT_B, Success);
-
-      Delays.Delay_Milliseconds (50);
-
+      Self.Finished              := Finished;
       Self.Accelerometer_Enabled := True;
       Self.Gyroscope_Enabled     := True;
       Self.Temperature_Enabled   := True;
+      Self.DMP_Enabled           := True;
 
-      --  BLACK MAGIC!
-
-      DMP612.Upload_Firmware (Self, Success);
-      DMP612.Set_FIFO_Rate (Self, FIFO_Rate);
-      DMP612.Set_Interrupt_Mode (Self, DMP612.Continuous);
+      DMP612.Initialize;
+      DMP612.Set_FIFO_Rate (FIFO_Rate);
+      DMP612.Set_Interrupt_Mode (DMP612.Continuous);
       DMP612.Enable_Features
         (Self                  => Self,
          Accelerometer         => DMP612.Raw,
@@ -321,278 +401,237 @@ package body BBF.Drivers.MPU is
          Gyroscope_Calibration => True,
          Tap                   => False,
          Android_Orientation   => False);
+
+      Self.CONFIG_Initiate
+        (Accelerometer_Range => FSR_2G,
+         Gyroscope_Range     => FSR_2000DPS,
+         Filter              => True,
+         Sample_Rate         => DMP612.DMP_Sample_Rate,
+         Success             => Success);
+
+   --     --  BLACK MAGIC!
+   --
+   --     DMP612.Upload_Firmware (Self, Success);
+   --     DMP612.Set_FIFO_Rate (Self, FIFO_Rate);
+   --     DMP612.Set_Interrupt_Mode (Self, DMP612.Continuous);
+   --     DMP612.Enable_Features
+   --       (Self                  => Self,
+   --        Accelerometer         => DMP612.Raw,
+   --        Gyroscope             => DMP612.Calibrated,
+   --        Quaternion            => DMP612.Quaternion_6,
+   --        Gyroscope_Calibration => True,
+   --        Tap                   => False,
+   --        Android_Orientation   => False);
    end Configure;
+
+   ---------------------------------
+   -- Device_Reset_Delay_Initiate --
+   ---------------------------------
+
+   procedure Device_Reset_Delay_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      pragma Warnings (Off, Success);
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Initialization_Device_Reset_Delay;
+
+      A0B.Timer.Enqueue
+        (Timeout  => Self.Timeout,
+         Callback => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         T        => A0B.Time.Milliseconds (100));
+   end Device_Reset_Delay_Initiate;
+
+   ---------------------------
+   -- Device_Reset_Initiate --
+   ---------------------------
+
+   procedure Device_Reset_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      PWR_MGMT_1 : Registers.PWR_MGMT_1_Register
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer     : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Initialization_Device_Reset;
+
+      PWR_MGMT_1 :=
+        (DEVICE_RESET => True,
+         CLKSEL       => Registers.Internal,
+         others       => <>);
+
+      Self.Write
+        (Address      => PWR_MGMT_1_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Device_Reset_Initiate;
 
    ------------
    -- Enable --
    ------------
 
    procedure Enable
-     (Self   : in out Abstract_MPU_Sensor'Class;
-      Delays : not null access BBF.Delays.Delay_Controller'Class)
-   is
-      Success : Boolean := True;
-
+     (Self     : in out Abstract_MPU_Sensor'Class;
+      Finished : A0B.Callbacks.Callback;
+      Success  : in out Boolean) is
    begin
-      --  Disable everything
-
-      declare
-         INT_ENABLE   : constant Registers.INT_ENABLE_Register :=
-           (others => False);
-         INT_ENABLE_B : constant BBF.Unsigned_8
-           with Import, Address => INT_ENABLE'Address;
-         FIFO_EN      : constant Registers.FIFO_EN_Register :=
-           (others => False);
-         FIFO_EN_B    : constant BBF.Unsigned_8
-           with Import, Address => FIFO_EN'Address;
-         USER_CTRL    : constant Registers.USER_CTRL_Register :=
-           (others => False);
-         USER_CTRL_B  : constant BBF.Unsigned_8
-           with Import, Address => USER_CTRL'Address;
-
-      begin
-         Self.Bus.Write_Synchronous
-           (Self.Device, INT_ENABLE_Address, INT_ENABLE_B, Success);
-         Self.Bus.Write_Synchronous
-           (Self.Device, FIFO_EN_Address, FIFO_EN_B, Success);
-         Self.Bus.Write_Synchronous
-           (Self.Device, USER_CTRL_Address, USER_CTRL_B, Success);
-      end;
-
-      --  Reset FIFO (and DMP when enabled)
-
-      declare
-         USER_CTRL   : constant Registers.USER_CTRL_Register :=
-           (FIFO_RESET => True,
-            DMP_RESET  => Self.DMP_Enabled,
-            others     => False);
-         USER_CTRL_B : constant BBF.Unsigned_8
-           with Import, Address => USER_CTRL'Address;
-
-      begin
-         Self.Bus.Write_Synchronous
-           (Self.Device, USER_CTRL_Address, USER_CTRL_B, Success);
-      end;
-
-      Delays.Delay_Milliseconds (50);
-
-      --  Enable FIFO (and DMP when used), interrupts and configure sensors to
-      --  report.
-
-      declare
-         USER_CTRL   : constant Registers.USER_CTRL_Register :=
-           (FIFO_EN => True,
-            DMP_EN  => Self.DMP_Enabled,
-            others  => False);
-         USER_CTRL_B : constant BBF.Unsigned_8
-           with Import, Address => USER_CTRL'Address;
-
-         INT         : constant INT_Registers :=
-           (INT_PIN_CFG  =>
-              (ACTL             => True,
-               LATCH_INT_EN     => False,
-               INT_ANYRD_2CLEAR => True,
-               others           => <>),
-            INT_ENABLE   =>
-              (RAW_RDY_EN => not Self.DMP_Enabled,
-               DMP_INT_EN => Self.DMP_Enabled,
-               others     => False));
-         INT_B       : constant BBF.Unsigned_8_Array_16 (1 .. 2)
-           with Import, Address => INT'Address;
-
-         FIFO_EN     : constant Registers.FIFO_EN_Register :=
-           (ACCEL_FIFO_EN =>
-              Self.Accelerometer_Enabled and not Self.DMP_Enabled,
-            XG_FIFO_EN    => Self.Gyroscope_Enabled and not Self.DMP_Enabled,
-            YG_FIFO_EN    => Self.Gyroscope_Enabled and not Self.DMP_Enabled,
-            ZG_FIFO_EN    => Self.Gyroscope_Enabled and not Self.DMP_Enabled,
-            TEMP_FIFO_EN  => Self.Temperature_Enabled and not Self.DMP_Enabled,
-            others        => False);
-         FIFO_EN_B   : constant BBF.Unsigned_8
-           with Import, Address => FIFO_EN'Address;
-
-      begin
-         Self.Bus.Write_Synchronous
-           (Self.Device, USER_CTRL_Address, USER_CTRL_B, Success);
-         Self.Bus.Write_Synchronous
-           (Self.Device, INT_PIN_CFG_Address, INT_B, Success);
-         Self.Bus.Write_Synchronous
-           (Self.Device, FIFO_EN_Address, FIFO_EN_B, Success);
-      end;
-
-      if not Success then
-         return;
+      if not Success or Self.State /= Ready then
+         Success := False;
       end if;
 
-      --  Configure pin to generate interrupts
+      Self.Finished := Finished;
 
-      Self.Pin.Configure (BBF.External_Interrupts.Falling_Edge);
-      Self.Pin.Set_Handler (On_Interrupt'Access, Self'Address);
-      Self.Pin.Enable_Interrupt;
+      Self.INT_ENABLE_Disable_Initiate (Success);
    end Enable;
 
-   -------------------------
-   -- Internal_Initialize --
-   -------------------------
+   -------------------------------------------
+   -- FIFO_COUNT_Complete_FIFO_R_W_Initiate --
+   -------------------------------------------
 
-   procedure Internal_Initialize
+   procedure FIFO_COUNT_Complete_FIFO_R_W_Initiate
      (Self    : in out Abstract_MPU_Sensor'Class;
-      Delays  : not null access BBF.Delays.Delay_Controller'Class;
-      WHOAMI  : BBF.Unsigned_8;
       Success : in out Boolean)
    is
-      Buffer : BBF.Unsigned_8;
+      use type A0B.Types.Unsigned_16;
+
+      Amount : constant Registers.FIFO_COUNT_Register
+        with Import, Address => Self.Transfer_Buffer (0)'Address;
+      Buffer : A0B.I2C.Unsigned_8_Array
+                 (0 .. A0B.Types.Unsigned_32 (Self.FIFO_Packet_Size - 1))
+        with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
-      Self.Initialized := False;
-
       if not Success then
          return;
       end if;
 
-      --  Do controller's probe.
-
-      Success := Self.Bus.Probe (Self.Device);
-
-      if not Success then
-         return;
-      end if;
-
-      --  Check controller's WHOAMI code
-
-      Self.Bus.Read_Synchronous
-        (Self.Device, MPU.WHO_AM_I_Address, Buffer, Success);
-
-      if not Success then
-         return;
-
-      elsif Buffer /= WHOAMI then
-         Success := False;
-
-         return;
-      end if;
-
-      --  Device reset
-
-      declare
-         PWR_MGMT_1   : constant Registers.PWR_MGMT_1_Register :=
-           (DEVICE_RESET => True,
-            CLKSEL       => Registers.Internal,
-            others       => <>);
-         PWR_MGMT_1_B : BBF.Unsigned_8
-           with Address => PWR_MGMT_1'Address;
-
-      begin
-         Self.Bus.Write_Synchronous
-           (Self.Device, PWR_MGMT_1_Address, PWR_MGMT_1_B, Success);
-
-         if not Success then
-            return;
-         end if;
-      end;
-
-      Delays.Delay_Milliseconds (100);
-
-      --  Signal path reset
-
-      declare
-         SIGNAL_PATH_RESET   : Registers.SIGNAL_PATH_RESET_Register :=
-           (TEMP_Reset  => True,
-            ACCEL_Reset => True,
-            GYRO_Reset  => True,
-            others      => <>);
-         SIGNAL_PATH_RESET_B : BBF.Unsigned_8
-           with Address => SIGNAL_PATH_RESET'Address;
-
-      begin
-         Self.Bus.Write_Synchronous
-           (Self.Device,
-            SIGNAL_PATH_RESET_Address,
-            SIGNAL_PATH_RESET_B,
-            Success);
-
-         if not Success then
-            return;
-         end if;
-      end;
-
-      Delays.Delay_Milliseconds (100);
-
-      --  Wakeup
-
-      declare
-         PWR_MGMT_1   : Registers.PWR_MGMT_1_Register :=
-           (SLEEP  => False,
-            CLKSEL => Registers.Internal,
-            others => <>);
-         PWR_MGMT_1_B : BBF.Unsigned_8
-           with Address => PWR_MGMT_1'Address;
-
-      begin
-         Self.Bus.Write_Synchronous
-           (Self.Device, PWR_MGMT_1_Address, PWR_MGMT_1_B, Success);
-      end;
-
-      Self.Initialized := True;
-   end Internal_Initialize;
-
-   ------------------------
-   -- On_FIFO_Count_Read --
-   ------------------------
-
-   procedure On_FIFO_Count_Read (Closure : System.Address) is
-      use type BBF.Unsigned_16;
-
-      Self    : constant Conversions.Object_Pointer :=
-        Conversions.To_Pointer (Closure);
-      Amount  : constant Registers.FIFO_COUNT_Register
-        with Import, Address => Self.Buffer (1)'Address;
-      Success : Boolean := True;
-
-   begin
       if Amount.Value < Self.FIFO_Packet_Size then
          --  Not enough data available.
 
+         Self.State := Ready;
+
          return;
       end if;
 
-      Self.Bus.Read_Asynchronous
-        (Device     => Self.Device,
-         Register   => FIFO_R_W_Address,
-         Data       => Self.Buffer (1)'Address,
-         Length     => Self.FIFO_Packet_Size,
-         On_Success => On_FIFO_Data_Read'Access,
-         On_Error   => null,
-         Closure    => Closure,
-         Success    => Success);
-   end On_FIFO_Count_Read;
+      Self.State := Interrupt_FIFO_R_W;
+
+      Self.Read
+        (Address      => FIFO_R_W_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end FIFO_COUNT_Complete_FIFO_R_W_Initiate;
+
+   ------------------------------
+   -- FIFO_EN_Disable_Initiate --
+   ------------------------------
+
+   procedure FIFO_EN_Disable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      FIFO_EN : Registers.FIFO_EN_Register
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer  : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Enable_FIFO_EN_Disable;
+
+      FIFO_EN := (others => False);
+
+      Self.Write
+        (Address      => FIFO_EN_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end FIFO_EN_Disable_Initiate;
+
+   -----------------------------
+   -- FIFO_EN_Enable_Initiate --
+   -----------------------------
+
+   procedure FIFO_EN_Enable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      FIFO_EN :  Registers.FIFO_EN_Register
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer    : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Enable_FIFO_EN_Enable;
+
+      FIFO_EN  :=
+        (ACCEL_FIFO_EN => Self.Accelerometer_Enabled and not Self.DMP_Enabled,
+         XG_FIFO_EN    => Self.Gyroscope_Enabled and not Self.DMP_Enabled,
+         YG_FIFO_EN    => Self.Gyroscope_Enabled and not Self.DMP_Enabled,
+         ZG_FIFO_EN    => Self.Gyroscope_Enabled and not Self.DMP_Enabled,
+         TEMP_FIFO_EN  => Self.Temperature_Enabled and not Self.DMP_Enabled,
+         others        => False);
+
+      Self.Write
+        (Address      => FIFO_EN_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end FIFO_EN_Enable_Initiate;
 
    -----------------------
-   -- On_FIFO_Data_Read --
+   -- FIFO_R_W_Complete --
    -----------------------
 
-   procedure On_FIFO_Data_Read (Closure : System.Address) is
+   procedure FIFO_R_W_Complete
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      pragma Warnings (Off, Success);
 
-      use type Interfaces.Unsigned_8;
       use type System.Storage_Elements.Storage_Offset;
 
-      Self   : constant Conversions.Object_Pointer :=
-        Conversions.To_Pointer (Closure);
-      Offset : System.Storage_Elements.Storage_Offset := 0;
-
       Data   : Raw_Data renames Self.Raw_Data (not Self.User_Bank);
+      Offset : System.Storage_Elements.Storage_Offset := 0;
 
    begin
       if Self.DMP_Enabled then
-         DMP612.Unpack_FIFO_Packet (Self.all);
-
-         return;
+         raise Program_Error;
+   --        DMP612.Unpack_FIFO_Packet (Self.all);
+   --
+   --        return;
       end if;
+
+      Self.State := Ready;
 
       if Self.Accelerometer_Enabled then
          declare
             Aux : constant Registers.ACCEL_OUT_Register
-              with Import, Address => Self.Buffer'Address + Offset;
+              with Import, Address => Self.Transfer_Buffer'Address + Offset;
 
          begin
             Data.ACCEL := Aux;
@@ -606,7 +645,7 @@ package body BBF.Drivers.MPU is
       if Self.Temperature_Enabled then
          declare
             Aux : constant Registers.TEMP_OUT_Register
-              with Import, Address => Self.Buffer'Address + Offset;
+              with Import, Address => Self.Transfer_Buffer'Address + Offset;
 
          begin
             Data.TEMP := Aux;
@@ -620,7 +659,7 @@ package body BBF.Drivers.MPU is
       if Self.Gyroscope_Enabled then
          declare
             Aux : constant Registers.GYRO_OUT_Register
-              with Import, Address => Self.Buffer'Address + Offset;
+              with Import, Address => Self.Transfer_Buffer'Address + Offset;
 
          begin
             Data.GYRO := Aux;
@@ -631,23 +670,99 @@ package body BBF.Drivers.MPU is
          Data.GYRO := (others => 0);
       end if;
 
-      Data.Timestamp := Self.Clocks.Clock;
+      Data.Timestamp := A0B.Time.Clock;
       Self.User_Bank := not @;
-   end On_FIFO_Data_Read;
+   end FIFO_R_W_Complete;
 
-   ------------------------
-   -- On_INT_STATUS_Read --
-   ------------------------
+   ---------------------------------
+   -- INT_ENABLE_Disable_Initiate --
+   ---------------------------------
 
-   procedure On_INT_STATUS_Read (Closure : System.Address) is
-      Self       : constant Conversions.Object_Pointer :=
-        Conversions.To_Pointer (Closure);
-      INT_STATUS : constant Registers.INT_STATUS_Register
-        with Import, Address => Self.Buffer (1)'Address;
-
-      Success    : Boolean := True;
+   procedure INT_ENABLE_Disable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      INT_ENABLE : Registers.INT_ENABLE_Register
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer     : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Enable_INT_ENABLE_Disable;
+
+      INT_ENABLE := (others => False);
+
+      Self.Write
+        (Address      => INT_ENABLE_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end INT_ENABLE_Disable_Initiate;
+
+   -------------------------
+   -- INT_Enable_Initiate --
+   -------------------------
+
+   procedure INT_Enable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      INT    : INT_Registers
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. 1)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Enable_INT_Enable;
+
+      INT :=
+        (INT_PIN_CFG  =>
+           (ACTL             => True,
+            LATCH_INT_EN     => False,
+            INT_ANYRD_2CLEAR => True,
+            others           => <>),
+         INT_ENABLE   =>
+           (RAW_RDY_EN => not Self.DMP_Enabled,
+            DMP_INT_EN => Self.DMP_Enabled,
+            others     => False));
+
+      Self.Write
+        (Address      => INT_PIN_CFG_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end INT_Enable_Initiate;
+
+   ---------------------------------------------
+   -- INT_STATUS_Complete_FIFO_COUNT_Initiate --
+   ---------------------------------------------
+
+   procedure INT_STATUS_Complete_FIFO_COUNT_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_32;
+
+      INT_STATUS : constant Registers.INT_STATUS_Register
+        with Import, Address => Self.Transfer_Buffer (0)'Address;
+      Buffer     : A0B.I2C.Unsigned_8_Array (0 .. FIFO_COUNT_Length - 1)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
       if INT_STATUS.FIFO_OFLOW_INT then
          --  FIFO overflow, operations should be shutdown and FIFO is
          --  restarted.
@@ -661,25 +776,83 @@ package body BBF.Drivers.MPU is
       then
          --  Initiate load of amount of data available in FIFO.
 
-         Self.Bus.Read_Asynchronous
-           (Device     => Self.Device,
-            Register   => FIFO_COUNT_Address,
-            Data       => Self.Buffer (1)'Address,
-            Length     => FIFO_COUNT_Length,
-            On_Success => On_FIFO_Count_Read'Access,
-            On_Error   => null,
-            Closure    => Closure,
-            Success    => Success);
+         Self.State := Interrupt_FIFO_COUNT;
+
+         Self.Read
+           (Address      => FIFO_COUNT_Address,
+            Buffer       => Buffer,
+            Status       => Self.Transfer_Status,
+            On_Completed =>
+              On_Operation_Finished_Callbacks.Create_Callback (Self),
+            Success      => Success);
+
+      else
+         raise Program_Error;
       end if;
-   end On_INT_STATUS_Read;
+   end INT_STATUS_Complete_FIFO_COUNT_Initiate;
+
+   -------------------------
+   -- INT_STATUS_Initiate --
+   -------------------------
+
+   procedure INT_STATUS_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Interrupt_INT_STATUS;
+
+      Self.Read
+        (Address      => INT_STATUS_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end INT_STATUS_Initiate;
+
+   -------------------------
+   -- Internal_Initialize --
+   -------------------------
+
+   procedure Internal_Initialize
+     (Self     : in out Abstract_MPU_Sensor'Class;
+      WHOAMI   : A0B.Types.Unsigned_8;
+      Finished : A0B.Callbacks.Callback;
+      Success  : in out Boolean) is
+   begin
+      Self.Initialized := False;
+
+      if not Success then
+         return;
+      end if;
+
+      Self.Finished := Finished;
+      Self.INT_Pin.Set_Callback (On_Interrupt_Callbacks.Create_Callback (Self));
+
+   --     --  Do controller's probe.
+   --
+   --     Success := Self.Bus.Probe (Self.Device);
+   --
+   --     if not Success then
+   --        return;
+   --     end if;
+   --
+
+      Self.WHOAMI_Check_Initiate (WHOAMI, Success);
+   end Internal_Initialize;
 
    ------------------
    -- On_Interrupt --
    ------------------
 
-   procedure On_Interrupt (Closure : System.Address) is
-      Self    : constant Conversions.Object_Pointer :=
-        Conversions.To_Pointer (Closure);
+   procedure On_Interrupt (Self : in out Abstract_MPU_Sensor'Class) is
       Success : Boolean := True;
 
    begin
@@ -691,56 +864,349 @@ package body BBF.Drivers.MPU is
       --  first read INT_STATUS and continue operation only then DATA_RDY_INT
       --  is set.
 
-      Self.Bus.Read_Asynchronous
-        (Device     => Self.Device,
-         Register   => INT_STATUS_Address,
-         Data       => Self.Buffer (1)'Address,
-         Length     => 1,
-         On_Success => On_INT_STATUS_Read'Access,
-         On_Error   => null,
-         Closure    => Closure,
-         Success    => Success);
+      Self.INT_STATUS_Initiate (Success);
+
+      if not Success then
+         raise Program_Error;
+      end if;
    end On_Interrupt;
 
-   ---------------------
-   -- Read_DMP_Memory --
-   ---------------------
+   ---------------------------
+   -- On_Operation_Finished --
+   ---------------------------
 
-   procedure Read_DMP_Memory
-     (Self    : in out Abstract_MPU_Sensor'Class;
-      Address : Interfaces.Unsigned_16;
-      Data    : out BBF.Unsigned_8_Array_16;
-      Success : in out Boolean)
-   is
-      use type Interfaces.Unsigned_16;
+   procedure On_Operation_Finished (Self : in out Abstract_MPU_Sensor'Class) is
+      use type A0B.I2C.Transfer_State;
 
-      BANK_SEL   : constant Registers.BANK_SEL_Register :=
-        (Address => Address);
-      BANK_SEL_B : constant BBF.Unsigned_8_Array_16 (1 .. DMP_BANK_SEL_Length)
-        with Import, Address => BANK_SEL'Address;
+      Success : Boolean := True;
 
    begin
-      --  XXX Check that MPU is not in SLEEP state
+      if Self.Transfer_Status.State /= A0B.I2C.Success then
+         Self.State := Initial;
 
-      if Address mod DMP_Bank_Size + Data'Length > DMP_Bank_Size then
-         --  Prevent write operation to write past the bank boundaries.
-
-         Success := False;
+         A0B.Callbacks.Emit_Once (Self.Finished);
 
          return;
       end if;
 
-      Self.Bus.Write_Synchronous
-        (Self.Device,
-         DMP_BANK_SEL_Address,
-         BANK_SEL_B,
-         Success);
-      Self.Bus.Read_Synchronous
-        (Self.Device,
-         DMP_MEM_R_W_Address,
-         Data,
-         Success);
-   end Read_DMP_Memory;
+      case Self.State is
+         when Initial =>
+            raise Program_Error;
+
+         when Initialization_WHOAMI_Check =>
+            Self.WHOAMI_Check_Complete (Success);
+            Self.Device_Reset_Initiate (Success);
+
+         when Initialization_Device_Reset =>
+            Self.Device_Reset_Delay_Initiate (Success);
+
+         when Initialization_Device_Reset_Delay =>
+            Self.Signal_Path_Reset_Initiate (Success);
+
+         when Initialization_Signal_Path_Reset =>
+            Self.Signal_Path_Reset_Delay_Initiate (Success);
+
+         when Initialization_Signal_Path_Reset_Delay =>
+            Self.Wakeup_Initiate (Success);
+
+         when Initialization_Wakeup =>
+            Self.State := Ready;
+
+            A0B.Callbacks.Emit_Once (Self.Finished);
+
+            return;
+
+         when Configuration_CONFIG =>
+            Self.PWR_MGMT_Initiate (Success);
+
+         when Configuration_PWR_MGMT =>
+            Self.Configuration_Delay_Initiate (Success);
+
+         when Configuration_Delay =>
+            if Self.DMP_Enabled then
+               --  Self.Firmware_Upload_Initiate (Success);
+               --  Self.Write_DMP (Success);
+               raise Program_Error;
+
+            else
+               Self.State := Ready;
+
+               A0B.Callbacks.Emit_Once (Self.Finished);
+
+               return;
+            end if;
+
+         when Enable_INT_ENABLE_Disable =>
+            Self.FIFO_EN_Disable_Initiate (Success);
+
+         when Enable_FIFO_EN_Disable =>
+            Self.USER_CTRL_Disable_Initiate (Success);
+
+         when Enable_USER_CTRL_Disable =>
+            Self.Reset_Initiate (Success);
+
+         when Enable_Reset =>
+            Self.Reset_Delay_Initiate (Success);
+
+         when Enable_Reset_Delay =>
+            Self.USER_CTRL_Enable_Initiate (Success);
+
+         when Enable_USER_CTRL_Enable =>
+            Self.INT_Enable_Initiate (Success);
+
+         when Enable_INT_Enable =>
+            Self.FIFO_EN_Enable_Initiate (Success);
+
+         when Enable_FIFO_EN_Enable =>
+            Self.State := Ready;
+            Self.INT_Pin.Enable_Interrupt;
+
+            A0B.Callbacks.Emit_Once (Self.Finished);
+
+            return;
+
+         when Interrupt_INT_STATUS =>
+            Self.INT_STATUS_Complete_FIFO_COUNT_Initiate (Success);
+
+         when Interrupt_FIFO_COUNT =>
+            Self.FIFO_COUNT_Complete_FIFO_R_W_Initiate (Success);
+
+         when Interrupt_FIFO_R_W =>
+            Self.FIFO_R_W_Complete (Success);
+
+         when others =>
+            raise Program_Error;
+      end case;
+
+      if not Success then
+         Self.State := Initial;
+
+         raise Program_Error;
+      end if;
+   end On_Operation_Finished;
+
+   -----------------------
+   -- PWR_MGMT_Initiate --
+   -----------------------
+
+   procedure PWR_MGMT_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      PWR_MGMT : PWR_MGMT_Registers
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer   : A0B.I2C.Unsigned_8_Array (0 .. 1)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Configuration_PWR_MGMT;
+
+      if Self.DMP_Enabled then
+         PWR_MGMT :=
+           (PWR_MGMT_1 =>
+              (CLKSEL => Registers.Internal,
+               SLEEP  => False,
+               others => <>),
+            PWR_MGMT_2 =>
+              (STBY_ZG => False,
+               STBY_YG => False,
+               STBY_XG => False,
+               STBY_ZA => False,
+               STBY_YA => False,
+               STBY_XA => False,
+               others  => <>));
+         --  Recommended by Application Notes.
+
+      else
+         PWR_MGMT :=
+           (PWR_MGMT_1 =>
+              (CLKSEL   =>
+                   (if Self.Gyroscope_Enabled
+                    then Registers.PLL_X
+                    else Registers.Internal),
+               --  On MPU6500 Auto (PLL_X) can be used always
+               TEMP_DIS => not Self.Temperature_Enabled,
+               SLEEP    =>
+                  not Self.Accelerometer_Enabled
+               and not Self.Gyroscope_Enabled
+               and not Self.Temperature_Enabled,
+               others => <>),
+            PWR_MGMT_2 =>
+              (STBY_ZG => not Self.Gyroscope_Enabled,
+               STBY_YG => not Self.Gyroscope_Enabled,
+               STBY_XG => not Self.Gyroscope_Enabled,
+               STBY_ZA => not Self.Accelerometer_Enabled,
+               STBY_YA => not Self.Accelerometer_Enabled,
+               STBY_XA => not Self.Accelerometer_Enabled,
+               others  => <>));
+      end if;
+
+      Self.Write
+        (Address      => PWR_MGMT_1_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end PWR_MGMT_Initiate;
+
+   --------------------------
+   -- Reset_Delay_Initiate --
+   --------------------------
+
+   procedure Reset_Delay_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      pragma Warnings (Off, Success);
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Enable_Reset_Delay;
+
+      A0B.Timer.Enqueue
+        (Timeout  => Self.Timeout,
+         Callback => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         T        => A0B.Time.Milliseconds (50));
+   end Reset_Delay_Initiate;
+
+   --------------------
+   -- Reset_Initiate --
+   --------------------
+
+   procedure Reset_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      --  Reset FIFO (and DMP when enabled)
+
+      USER_CTRL :  Registers.USER_CTRL_Register
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer    : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Enable_Reset;
+
+      USER_CTRL :=
+        (FIFO_RESET => True,
+         DMP_RESET  => Self.DMP_Enabled,
+         others     => False);
+
+      Self.Write
+        (Address      => USER_CTRL_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Reset_Initiate;
+
+   --------------------------------------
+   -- Signal_Path_Reset_Delay_Initiate --
+   --------------------------------------
+
+   procedure Signal_Path_Reset_Delay_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      pragma Warnings (Off, Success);
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Initialization_Signal_Path_Reset_Delay;
+
+      A0B.Timer.Enqueue
+        (Timeout  => Self.Timeout,
+         Callback => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         T        => A0B.Time.Milliseconds (100));
+   end Signal_Path_Reset_Delay_Initiate;
+
+   --------------------------------
+   -- Signal_Path_Reset_Initiate --
+   --------------------------------
+
+   procedure Signal_Path_Reset_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      SIGNAL_PATH_RESET : Registers.SIGNAL_PATH_RESET_Register
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer            : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Initialization_Signal_Path_Reset;
+
+      SIGNAL_PATH_RESET :=
+        (TEMP_Reset  => True,
+         ACCEL_Reset => True,
+         GYRO_Reset  => True,
+         others      => <>);
+
+      Self.Write
+        (Address      => SIGNAL_PATH_RESET_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Signal_Path_Reset_Initiate;
+
+   --  ---------------------
+   --  -- Read_DMP_Memory --
+   --  ---------------------
+   --
+   --  procedure Read_DMP_Memory
+   --    (Self    : in out Abstract_MPU_Sensor'Class;
+   --     Address : Interfaces.Unsigned_16;
+   --     Data    : out BBF.Unsigned_8_Array_16;
+   --     Success : in out Boolean)
+   --  is
+   --     use type Interfaces.Unsigned_16;
+   --
+   --     BANK_SEL   : constant Registers.BANK_SEL_Register :=
+   --       (Address => Address);
+   --     BANK_SEL_B : constant BBF.Unsigned_8_Array_16 (1 .. DMP_BANK_SEL_Length)
+   --       with Import, Address => BANK_SEL'Address;
+   --
+   --  begin
+   --     --  XXX Check that MPU is not in SLEEP state
+   --
+   --     if Address mod DMP_Bank_Size + Data'Length > DMP_Bank_Size then
+   --        --  Prevent write operation to write past the bank boundaries.
+   --
+   --        Success := False;
+   --
+   --        return;
+   --     end if;
+   --
+   --     Self.Bus.Write_Synchronous
+   --       (Self.Device,
+   --        DMP_BANK_SEL_Address,
+   --        BANK_SEL_B,
+   --        Success);
+   --     Self.Bus.Read_Synchronous
+   --       (Self.Device,
+   --        DMP_MEM_R_W_Address,
+   --        Data,
+   --        Success);
+   --  end Read_DMP_Memory;
 
    -------------------------
    -- To_Angular_Velosity --
@@ -750,6 +1216,8 @@ package body BBF.Drivers.MPU is
      (Self : Abstract_MPU_Sensor'Class;
       Raw  : Interfaces.Integer_16) return Angular_Velosity
    is
+      pragma Unreferenced (Self);
+
       use type Interfaces.Integer_32;
 
       function Convert is
@@ -769,6 +1237,8 @@ package body BBF.Drivers.MPU is
      (Self : Abstract_MPU_Sensor'Class;
       Raw  : Interfaces.Integer_16) return Gravitational_Acceleration
    is
+      pragma Unreferenced (Self);
+
       use type Interfaces.Integer_32;
 
       function Convert is
@@ -780,107 +1250,253 @@ package body BBF.Drivers.MPU is
       --  XXX 8 must be replaced by configured value
    end To_Gravitational_Acceleration;
 
-   ---------------------
-   -- Upload_Firmware --
-   ---------------------
+   --  ---------------------
+   --  -- Upload_Firmware --
+   --  ---------------------
+   --
+   --  procedure Upload_Firmware
+   --    (Self     : in out Abstract_MPU_Sensor'Class;
+   --     Firmware : BBF.Unsigned_8_Array_16;
+   --     Address  : Interfaces.Unsigned_16;
+   --     Success  : in out Boolean)
+   --  is
+   --     PRGM_START   : constant Registers.PRGM_START_Register :=
+   --       (Address => Address);
+   --     PRGM_START_B : constant BBF.Unsigned_8_Array_16
+   --                               (1 .. DMP_PRGM_START_Length)
+   --       with Import, Address => PRGM_START'Address;
+   --
+   --     Max_Chunk : constant BBF.Unsigned_16 := Self.Buffer'Length;
+   --     Current   : BBF.Unsigned_16          := Firmware'First;
+   --     Chunk     : BBF.Unsigned_16          := 0;
+   --
+   --  begin
+   --     loop
+   --        exit when not Success;
+   --        exit when Current > Firmware'Last;
+   --
+   --        Chunk :=
+   --          BBF.Unsigned_16'Min (Max_Chunk, Firmware'Last - Current + 1);
+   --
+   --        --  Copy chunk of data: when firmware is stored in the flash memory
+   --        --  it might be unaccessible by PDC.
+   --
+   --        Self.Buffer (1 .. Chunk) := Firmware (Current .. Current + Chunk - 1);
+   --
+   --        Self.Write_DMP_Memory
+   --          (Interfaces.Unsigned_16 (Current - 1),
+   --           Self.Buffer (1 .. Chunk),
+   --           Success);
+   --
+   --        --  Check that uploaded data match firmware
+   --
+   --        Self.Read_DMP_Memory
+   --          (Interfaces.Unsigned_16 (Current - 1),
+   --           Self.Buffer (1 .. Chunk),
+   --           Success);
+   --
+   --        if Firmware (Current .. Current + Chunk - 1)
+   --             /= Self.Buffer (1 .. Chunk)
+   --        then
+   --           Success := False;
+   --        end if;
+   --
+   --        Current := @ + Chunk;
+   --     end loop;
+   --
+   --     Self.Bus.Write_Synchronous
+   --       (Self.Device,
+   --        DMP_PRGM_START_Address,
+   --        PRGM_START_B,
+   --        Success);
+   --
+   --
+   --  end Upload_Firmware;
+   --
+   --  ----------------------
+   --  -- Write_DMP_Memory --
+   --  ----------------------
+   --
+   --  procedure Write_DMP_Memory
+   --    (Self    : in out Abstract_MPU_Sensor'Class;
+   --     Address : Interfaces.Unsigned_16;
+   --     Data    : BBF.Unsigned_8_Array_16;
+   --     Success : in out Boolean)
+   --  is
+   --     use type Interfaces.Unsigned_16;
+   --
+   --     BANK_SEL   : constant Registers.BANK_SEL_Register :=
+   --       (Address => Address);
+   --     BANK_SEL_B : constant BBF.Unsigned_8_Array_16 (1 .. DMP_BANK_SEL_Length)
+   --       with Import, Address => BANK_SEL'Address;
+   --
+   --  begin
+   --     --  XXX Check that MPU is not in SLEEP state
+   --
+   --     if Address mod DMP_Bank_Size + Data'Length > DMP_Bank_Size then
+   --        --  Prevent write operation to write past the bank boundaries.
+   --
+   --        Success := False;
+   --
+   --        return;
+   --     end if;
+   --
+   --     Self.Bus.Write_Synchronous
+   --       (Self.Device,
+   --        DMP_BANK_SEL_Address,
+   --        BANK_SEL_B,
+   --        Success);
+   --     Self.Bus.Write_Synchronous
+   --       (Self.Device,
+   --        DMP_MEM_R_W_Address,
+   --        Data,
+   --        Success);
+   --  end Write_DMP_Memory;
 
-   procedure Upload_Firmware
-     (Self     : in out Abstract_MPU_Sensor'Class;
-      Firmware : BBF.Unsigned_8_Array_16;
-      Address  : Interfaces.Unsigned_16;
-      Success  : in out Boolean)
-   is
-      PRGM_START   : constant Registers.PRGM_START_Register :=
-        (Address => Address);
-      PRGM_START_B : constant BBF.Unsigned_8_Array_16
-                                (1 .. DMP_PRGM_START_Length)
-        with Import, Address => PRGM_START'Address;
+   --------------------------------
+   -- USER_CTRL_Disable_Initiate --
+   --------------------------------
 
-      Max_Chunk : constant BBF.Unsigned_16 := Self.Buffer'Length;
-      Current   : BBF.Unsigned_16          := Firmware'First;
-      Chunk     : BBF.Unsigned_16          := 0;
-
-   begin
-      loop
-         exit when not Success;
-         exit when Current > Firmware'Last;
-
-         Chunk :=
-           BBF.Unsigned_16'Min (Max_Chunk, Firmware'Last - Current + 1);
-
-         --  Copy chunk of data: when firmware is stored in the flash memory
-         --  it might be unaccessible by PDC.
-
-         Self.Buffer (1 .. Chunk) := Firmware (Current .. Current + Chunk - 1);
-
-         Self.Write_DMP_Memory
-           (Interfaces.Unsigned_16 (Current - 1),
-            Self.Buffer (1 .. Chunk),
-            Success);
-
-         --  Check that uploaded data match firmware
-
-         Self.Read_DMP_Memory
-           (Interfaces.Unsigned_16 (Current - 1),
-            Self.Buffer (1 .. Chunk),
-            Success);
-
-         if Firmware (Current .. Current + Chunk - 1)
-              /= Self.Buffer (1 .. Chunk)
-         then
-            Success := False;
-         end if;
-
-         Current := @ + Chunk;
-      end loop;
-
-      Self.Bus.Write_Synchronous
-        (Self.Device,
-         DMP_PRGM_START_Address,
-         PRGM_START_B,
-         Success);
-
-
-   end Upload_Firmware;
-
-   ----------------------
-   -- Write_DMP_Memory --
-   ----------------------
-
-   procedure Write_DMP_Memory
+   procedure USER_CTRL_Disable_Initiate
      (Self    : in out Abstract_MPU_Sensor'Class;
-      Address : Interfaces.Unsigned_16;
-      Data    : BBF.Unsigned_8_Array_16;
       Success : in out Boolean)
    is
-      use type Interfaces.Unsigned_16;
-
-      BANK_SEL   : constant Registers.BANK_SEL_Register :=
-        (Address => Address);
-      BANK_SEL_B : constant BBF.Unsigned_8_Array_16 (1 .. DMP_BANK_SEL_Length)
-        with Import, Address => BANK_SEL'Address;
+      USER_CTRL : Registers.USER_CTRL_Register
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer    : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
-      --  XXX Check that MPU is not in SLEEP state
-
-      if Address mod DMP_Bank_Size + Data'Length > DMP_Bank_Size then
-         --  Prevent write operation to write past the bank boundaries.
-
-         Success := False;
-
+      if not Success then
          return;
       end if;
 
-      Self.Bus.Write_Synchronous
-        (Self.Device,
-         DMP_BANK_SEL_Address,
-         BANK_SEL_B,
-         Success);
-      Self.Bus.Write_Synchronous
-        (Self.Device,
-         DMP_MEM_R_W_Address,
-         Data,
-         Success);
-   end Write_DMP_Memory;
+      Self.State := Enable_USER_CTRL_Disable;
 
-end BBF.Drivers.MPU;
+      USER_CTRL := (others => False);
+
+      Self.Write
+        (Address      => USER_CTRL_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end USER_CTRL_Disable_Initiate;
+
+   -------------------------------
+   -- USER_CTRL_Enable_Initiate --
+   -------------------------------
+
+   procedure USER_CTRL_Enable_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      USER_CTRL : Registers.USER_CTRL_Register
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer    : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Enable_USER_CTRL_Enable;
+
+      USER_CTRL :=
+        (FIFO_EN => True,
+         DMP_EN  => Self.DMP_Enabled,
+         others  => False);
+
+      Self.Write
+        (Address      => USER_CTRL_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end USER_CTRL_Enable_Initiate;
+
+   ---------------------
+   -- Wakeup_Initiate --
+   ---------------------
+
+   procedure Wakeup_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      PWR_MGMT_1 : Registers.PWR_MGMT_1_Register
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer     : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Initialization_Wakeup;
+
+      PWR_MGMT_1 :=
+        (SLEEP  => False,
+         CLKSEL => Registers.Internal,
+         others => <>);
+
+      Self.Write
+        (Address      => PWR_MGMT_1_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Wakeup_Initiate;
+
+   ---------------------------
+   -- WHOAMI_Check_Complete --
+   ---------------------------
+
+   procedure WHOAMI_Check_Complete
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_8;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      if Self.Transfer_Buffer (0) /= Self.WHOAMI then
+         Success := False;
+      end if;
+   end WHOAMI_Check_Complete;
+
+   ---------------------------
+   -- WHOAMI_Check_Initiate --
+   ---------------------------
+
+   procedure WHOAMI_Check_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      WHOAMI  : A0B.Types.Unsigned_8;
+      Success : in out Boolean)
+   is
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. 0)
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      --  Initiate read of controller's WHOAMI code
+
+      Self.State  := Initialization_WHOAMI_Check;
+      Self.WHOAMI := WHOAMI;
+
+      Self.Read
+        (Address      => A0B.MPUXXXX.WHO_AM_I_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end WHOAMI_Check_Initiate;
+
+end A0B.MPUXXXX;
