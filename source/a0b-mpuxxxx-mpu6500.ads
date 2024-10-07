@@ -26,4 +26,8 @@ private
    overriding function Is_6500_9250
      (Self : MPU6500_Sensor) return Boolean is (True);
 
+   overriding function To_Temperature
+     (Self : MPU6500_Sensor;
+      Raw  : Interfaces.Integer_16) return Temperature;
+
 end A0B.MPUXXXX.MPU6500;

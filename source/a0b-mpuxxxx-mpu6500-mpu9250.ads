@@ -41,9 +41,4 @@ private
 
    type MPU9250_Sensor is new MPU6500_Sensor with null record;
 
-   overriding function To_Temperature
-     (Self : MPU9250_Sensor;
-      Raw  : Interfaces.Integer_16) return Temperature is
-        (0.0);
-
 end A0B.MPUXXXX.MPU6500.MPU9250;

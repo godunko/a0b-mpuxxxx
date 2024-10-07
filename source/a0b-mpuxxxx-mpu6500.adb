@@ -20,4 +20,15 @@ package body A0B.MPUXXXX.MPU6500 is
       Self.Internal_Initialize (MPU6500_WHOAMI, Finished, Success);
    end Initialize;
 
+   --------------------
+   -- To_Temperature --
+   --------------------
+
+   overriding function To_Temperature
+     (Self : MPU6500_Sensor;
+      Raw  : Interfaces.Integer_16) return Temperature is
+   begin
+      return Temperature (Float (Raw) / 321.0 + 35.0);
+   end To_Temperature;
+
 end A0B.MPUXXXX.MPU6500;
