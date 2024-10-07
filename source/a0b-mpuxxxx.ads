@@ -502,6 +502,9 @@ private
       --  Size of the FIFO packet to download and decode. It depends of
       --  configuration of the sensor.
 
+      FIFO_Remaining_Size       : A0B.Types.Unsigned_16 := 0;
+      --  Number of bytes remaining in the FIFO.
+
       User_Bank                 : Boolean := False with Volatile;
       Raw_Data                  : Raw_Data_Array;
       --  Two banks of collected information: one is used by the user, and

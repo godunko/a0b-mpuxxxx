@@ -152,9 +152,14 @@ package body A0B.MPUXXXX is
      (Self    : in out Abstract_MPU_Sensor'Class;
       Success : in out Boolean);
 
-   procedure FIFO_COUNT_Complete_FIFO_R_W_Initiate
+   procedure FIFO_COUNT_Complete
      (Self    : in out Abstract_MPU_Sensor'Class;
       Success : in out Boolean);
+
+   procedure FIFO_R_W_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+   --  Initiate FIFO read operation when enough data is available.
 
    procedure FIFO_R_W_Complete
      (Self    : in out Abstract_MPU_Sensor'Class;
@@ -498,21 +503,20 @@ package body A0B.MPUXXXX is
       Self.INT_ENABLE_Disable_Initiate (Success);
    end Enable;
 
-   -------------------------------------------
-   -- FIFO_COUNT_Complete_FIFO_R_W_Initiate --
-   -------------------------------------------
+   -------------------------
+   -- FIFO_COUNT_Complete --
+   -------------------------
 
-   procedure FIFO_COUNT_Complete_FIFO_R_W_Initiate
+   procedure FIFO_COUNT_Complete
      (Self    : in out Abstract_MPU_Sensor'Class;
       Success : in out Boolean)
    is
+      pragma Warnings (Off, Success);
+
       use type A0B.Types.Unsigned_16;
 
       Amount : constant Registers.FIFO_COUNT_Register
         with Import, Address => Self.Transfer_Buffer (0)'Address;
-      Buffer : A0B.I2C.Unsigned_8_Array
-                 (0 .. A0B.Types.Unsigned_32 (Self.FIFO_Packet_Size - 1))
-        with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
       if not Success then
@@ -523,19 +527,14 @@ package body A0B.MPUXXXX is
          --  Not enough data available.
 
          Self.State := Ready;
+         Self.FIFO_Remaining_Size := 0;
 
-         return;
+         raise Program_Error;
+         --  return;
       end if;
 
-      Self.State := Interrupt_FIFO_R_W;
-
-      Self.Read
-        (Address      => FIFO_R_W_Address,
-         Buffer       => Buffer,
-         Status       => Self.Transfer_Status,
-         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
-         Success      => Success);
-   end FIFO_COUNT_Complete_FIFO_R_W_Initiate;
+      Self.FIFO_Remaining_Size := Amount.Value;
+   end FIFO_COUNT_Complete;
 
    ------------------------------
    -- FIFO_EN_Disable_Initiate --
@@ -673,6 +672,48 @@ package body A0B.MPUXXXX is
       Data.Timestamp := A0B.Time.Clock;
       Self.User_Bank := not @;
    end FIFO_R_W_Complete;
+
+   -----------------------
+   -- FIFO_R_W_Initiate --
+   -----------------------
+
+   procedure FIFO_R_W_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_16;
+
+      Buffer : A0B.I2C.Unsigned_8_Array
+                 (0 .. A0B.Types.Unsigned_32 (Self.FIFO_Packet_Size - 1))
+        with Import, Address => Self.Transfer_Buffer'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      if Self.FIFO_Remaining_Size >= Self.FIFO_Packet_Size then
+         Self.FIFO_Remaining_Size := @ - Self.FIFO_Packet_Size;
+
+         Self.State := Interrupt_FIFO_R_W;
+
+         Self.Read
+           (Address      => FIFO_R_W_Address,
+            Buffer       => Buffer,
+            Status       => Self.Transfer_Status,
+            On_Completed =>
+              On_Operation_Finished_Callbacks.Create_Callback (Self),
+            Success      => Success);
+
+      else
+         if Self.FIFO_Remaining_Size /= 0 then
+            raise Program_Error;
+         end if;
+
+         Self.FIFO_Remaining_Size := 0;
+         Self.State               := Ready;
+      end if;
+   end FIFO_R_W_Initiate;
 
    ---------------------------------
    -- INT_ENABLE_Disable_Initiate --
@@ -882,11 +923,13 @@ package body A0B.MPUXXXX is
 
    begin
       if Self.Transfer_Status.State /= A0B.I2C.Success then
-         Self.State := Initial;
+         raise Program_Error;
 
-         A0B.Callbacks.Emit_Once (Self.Finished);
-
-         return;
+         --  Self.State := Initial;
+         --
+         --  A0B.Callbacks.Emit_Once (Self.Finished);
+         --
+         --  return;
       end if;
 
       case Self.State is
@@ -969,10 +1012,13 @@ package body A0B.MPUXXXX is
             Self.INT_STATUS_Complete_FIFO_COUNT_Initiate (Success);
 
          when Interrupt_FIFO_COUNT =>
-            Self.FIFO_COUNT_Complete_FIFO_R_W_Initiate (Success);
+            Self.FIFO_COUNT_Complete (Success);
+            Self.FIFO_R_W_Initiate (Success);
 
          when Interrupt_FIFO_R_W =>
             Self.FIFO_R_W_Complete (Success);
+            Self.FIFO_R_W_Initiate (Success);
+            --  Complete current FIFO read operation and
 
          when others =>
             raise Program_Error;
