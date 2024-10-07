@@ -1,17 +1,12 @@
-------------------------------------------------------------------------------
---                                                                          --
---                           Bare Board Framework                           --
---                                                                          --
-------------------------------------------------------------------------------
 --
---  Copyright (C) 2019-2023, Vadim Godunko <vgodunko@gmail.com>
+--  Copyright (C) 2019-2024, Vadim Godunko <vgodunko@gmail.com>
 --
 --  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 --
 
 pragma Restrictions (No_Elaboration_Code);
 
-package body BBF.Drivers.MPU.MPU6500.MPU9250 is
+package body A0B.MPUXXXX.MPU6500.MPU9250 is
 
    ---------
    -- Get --
@@ -20,7 +15,7 @@ package body BBF.Drivers.MPU.MPU6500.MPU9250 is
    procedure Get
      (Self      : MPU9250_Sensor'Class;
       Data      : out Sensor_Data;
-      Timestamp : out BBF.Clocks.Time)
+      Timestamp : out A0B.Time.Monotonic_Time)
    is
       Raw : Raw_Data renames Self.Raw_Data (Self.User_Bank);
 
@@ -65,7 +60,7 @@ package body BBF.Drivers.MPU.MPU6500.MPU9250 is
          Timestamp := Raw.Timestamp;
 
       else
-         Timestamp := 0.0;
+         Timestamp := A0B.Time.To_Monotonic_Time (0);
       end if;
    end Get;
 
@@ -74,13 +69,13 @@ package body BBF.Drivers.MPU.MPU6500.MPU9250 is
    ----------------
 
    procedure Initialize
-     (Self    : in out MPU9250_Sensor;
-      Delays  : not null access BBF.Delays.Delay_Controller'Class;
-      Success : in out Boolean) is
+     (Self     : in out MPU9250_Sensor;
+      Finished : A0B.Callbacks.Callback;
+      Success  : in out Boolean) is
    begin
-      Self.Internal_Initialize (Delays, MPU9250_WHOAMI, Success);
+      Self.Internal_Initialize (MPU9250_WHOAMI, Finished, Success);
 
       --  XXX Initialize compass
    end Initialize;
 
-end BBF.Drivers.MPU.MPU6500.MPU9250;
+end A0B.MPUXXXX.MPU6500.MPU9250;

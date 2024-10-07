@@ -15,8 +15,9 @@ package A0B.MPUXXXX.MPU6500 is
    type MPU6500_Sensor is new Abstract_MPU_Sensor with private;
 
    not overriding procedure Initialize
-     (Self    : in out MPU6500_Sensor;
-      Success : in out Boolean);
+     (Self     : in out MPU6500_Sensor;
+      Finished : A0B.Callbacks.Callback;
+      Success  : in out Boolean);
 
 private
 

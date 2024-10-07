@@ -28,8 +28,9 @@ package A0B.MPUXXXX.MPU6500.MPU9250 is
      new Abstract_MPU_Sensor with private with Preelaborable_Initialization;
 
    procedure Initialize
-     (Self    : in out MPU9250_Sensor;
-      Success : in out Boolean);
+     (Self     : in out MPU9250_Sensor;
+      Finished : A0B.Callbacks.Callback;
+      Success  : in out Boolean);
 
    procedure Get
      (Self      : MPU9250_Sensor'Class;

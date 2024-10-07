@@ -400,8 +400,8 @@ private
    --  AK8975_Address : constant BBF.I2C.Device_Address := 16#0C#;
 
    MPU6050_WHOAMI : constant := 16#68#;
-   --  MPU6500_WHOAMI : constant := 16#70#;
-   --  MPU9250_WHOAMI : constant := 16#71#;
+   MPU6500_WHOAMI : constant := 16#70#;
+   MPU9250_WHOAMI : constant := 16#71#;
 
    SMPLRT_DIV_Address             : constant Register_Address := 16#19#;
    --  CONFIG_Address                 : constant Register_Address := 16#1A#;
