@@ -925,12 +925,10 @@ package body A0B.MPUXXXX is
    ---------------------------
 
    procedure On_Operation_Finished (Self : in out Abstract_MPU_Sensor'Class) is
-      use type A0B.I2C.Transfer_State;
-
       Success : Boolean := True;
 
    begin
-      if Self.Transfer_Status.State /= A0B.I2C.Success then
+      if Self.Transfer_Status.State /= A0B.Success then
          raise Program_Error;
 
          --  Self.State := Initial;
