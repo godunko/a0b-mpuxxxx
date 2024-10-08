@@ -828,7 +828,9 @@ package body A0B.MPUXXXX is
             Success      => Success);
 
       else
-         raise Program_Error;
+         --  FIFO is empty, nothing to do.
+
+         Self.State := Ready;
       end if;
    end INT_STATUS_Complete_FIFO_COUNT_Initiate;
 
@@ -897,6 +899,12 @@ package body A0B.MPUXXXX is
       Success : Boolean := True;
 
    begin
+      if Self.State /= Ready then
+         --  Busy, return immidiately.
+
+         return;
+      end if;
+
       --  Initiate read of INT_STATUS register.
       --
       --  Unfortunately, read of FIFO_COUNT is not enough: sometimes FIFO_COUNT
