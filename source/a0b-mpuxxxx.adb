@@ -523,16 +523,6 @@ package body A0B.MPUXXXX is
          return;
       end if;
 
-      if Amount.Value < Self.FIFO_Packet_Size then
-         --  Not enough data available.
-
-         Self.State := Ready;
-         Self.FIFO_Remaining_Size := 0;
-
-         raise Program_Error;
-         --  return;
-      end if;
-
       Self.FIFO_Remaining_Size := Amount.Value;
    end FIFO_COUNT_Complete;
 
@@ -708,9 +698,7 @@ package body A0B.MPUXXXX is
             Success      => Success);
 
       else
-         if Self.FIFO_Remaining_Size /= 0 then
-            raise Program_Error;
-         end if;
+         --  Not enough data in the FIFO.
 
          Self.FIFO_Remaining_Size := 0;
          Self.State               := Ready;
