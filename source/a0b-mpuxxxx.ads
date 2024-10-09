@@ -6,6 +6,11 @@
 
 --  Common code for MPU-6000/MPU-6050/MPU-6500/MPU-9150/MPU-9250 family: the
 --  Motion Processing Units
+--
+--  Note: This driver uses INT signal to initiate read of the sensor's data.
+--  It is recommended to configure external interrupt to detect rising edge,
+--  otherwise sensor doesn't acknowledge read operation of INT_STATUS register
+--  from time to time.
 
 pragma Restrictions (No_Elaboration_Code);
 
