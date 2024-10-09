@@ -671,6 +671,8 @@ package body A0B.MPUXXXX is
 
       Data.Timestamp := A0B.Time.Clock;
       Self.User_Bank := not @;
+
+      A0B.Callbacks.Emit (Self.Data_Ready);
    end FIFO_R_W_Complete;
 
    -----------------------
@@ -929,13 +931,24 @@ package body A0B.MPUXXXX is
 
    begin
       if Self.Transfer_Status.State /= A0B.Success then
-         raise Program_Error;
+         if Self.State = Interrupt_INT_STATUS then
+            --  MPU6050 sometimes don't acknowledge read operation of the
+            --  INT_STATUS register. Ignore failure, it seems sensor continue
+            --  to work properly after such failure.
 
-         --  Self.State := Initial;
-         --
-         --  A0B.Callbacks.Emit_Once (Self.Finished);
-         --
-         --  return;
+            Self.State := Ready;
+
+            return;
+
+         else
+            --  Self.State := Initial;
+            --
+            --  A0B.Callbacks.Emit_Once (Self.Finished);
+            --
+            --  return;
+
+            raise Program_Error;
+         end if;
       end if;
 
       case Self.State is
@@ -1162,6 +1175,17 @@ package body A0B.MPUXXXX is
          On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
          Success      => Success);
    end Reset_Initiate;
+
+   -----------------------------
+   -- Set_Data_Ready_Callback --
+   -----------------------------
+
+   procedure Set_Data_Ready_Callback
+     (Self     : in out Abstract_MPU_Sensor'Class;
+      Callback : A0B.Callbacks.Callback) is
+   begin
+      Self.Data_Ready := Callback;
+   end Set_Data_Ready_Callback;
 
    --------------------------------------
    -- Signal_Path_Reset_Delay_Initiate --

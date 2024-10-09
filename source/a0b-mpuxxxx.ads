@@ -82,6 +82,11 @@ package A0B.MPUXXXX is
       Success   : in out Boolean);
    --  Configure sensor in DMP mode.
 
+   procedure Set_Data_Ready_Callback
+     (Self     : in out Abstract_MPU_Sensor'Class;
+      Callback : A0B.Callbacks.Callback);
+   --  Sets callback to be called on receive of the new set of data.
+
    procedure Enable
      (Self     : in out Abstract_MPU_Sensor'Class;
       Finished : A0B.Callbacks.Callback;
@@ -478,13 +483,15 @@ private
    type Abstract_MPU_Sensor
      (Controller : not null access A0B.I2C.I2C_Bus_Master'Class;
       Address    : A0B.I2C.Device_Address;
-      INT_Pin    : not null access A0B.EXTI.External_Interrupt_Line'Class)
-     is abstract new A0B.I2C.Device_Drivers_8.I2C_Device_Driver
+      INT_Pin    : not null access A0B.EXTI.External_Interrupt_Line'Class) is
+     abstract new A0B.I2C.Device_Drivers_8.I2C_Device_Driver
                        (Controller => Controller,
                         Address    => Address) with
    record
       State                     : States  := Initial;
       Initialized               : Boolean := False;
+      Data_Ready                : A0B.Callbacks.Callback;
+      --  Callback to be called on receive of the new data package.
 
       WHOAMI                    : A0B.Types.Unsigned_8;
 
