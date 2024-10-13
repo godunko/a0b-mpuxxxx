@@ -357,7 +357,15 @@ package body A0B.MPUXXXX is
 
       Self.Finished              := Finished;
       Self.Accelerometer_Enabled := Accelerometer_Range /= Disabled;
+      Self.Accelerometer_Scale   :=
+        (if Self.Accelerometer_Enabled
+           then Accelerometer_Range_Type'Pos (Accelerometer_Range)
+           else 0);
       Self.Gyroscope_Enabled     := Gyroscope_Range /= Disabled;
+      Self.Gyroscope_Scale   :=
+        (if Self.Gyroscope_Enabled
+           then Gyroscope_Range_Type'Pos (Gyroscope_Range)
+           else 0);
       Self.Temperature_Enabled   := Temperature;
       Self.DMP_Enabled           := False;
       Self.FIFO_Packet_Size :=
@@ -1280,17 +1288,22 @@ package body A0B.MPUXXXX is
      (Self : Abstract_MPU_Sensor'Class;
       Raw  : Interfaces.Integer_16) return Angular_Velosity
    is
-      pragma Unreferenced (Self);
+      use type A0B.Types.Integer_32;
 
-      use type Interfaces.Integer_32;
-
-      function Convert is
+      function To_U32 is
         new Ada.Unchecked_Conversion
-              (Interfaces.Integer_32, Angular_Velosity);
+              (A0B.Types.Integer_32, A0B.Types.Unsigned_32);
+
+      function To_AV is
+        new Ada.Unchecked_Conversion
+              (A0B.Types.Unsigned_32, Angular_Velosity);
 
    begin
-      return Convert (Interfaces.Integer_32 (Raw) * 1_000 * 8);
-      --  XXX 8 must be replaced by configured value
+      return
+        To_AV
+          (A0B.Types.Shift_Left
+             (To_U32 (A0B.Types.Integer_32 (Raw) * 1_000),
+              Self.Gyroscope_Scale));
    end To_Angular_Velosity;
 
    -----------------------------------
@@ -1301,17 +1314,22 @@ package body A0B.MPUXXXX is
      (Self : Abstract_MPU_Sensor'Class;
       Raw  : Interfaces.Integer_16) return Gravitational_Acceleration
    is
-      pragma Unreferenced (Self);
-
       use type Interfaces.Integer_32;
 
-      function Convert is
+      function To_U32 is
         new Ada.Unchecked_Conversion
-              (Interfaces.Integer_32, Gravitational_Acceleration);
+              (A0B.Types.Integer_32, A0B.Types.Unsigned_32);
+
+      function To_GA is
+        new Ada.Unchecked_Conversion
+              (Interfaces.Unsigned_32, Gravitational_Acceleration);
 
    begin
-      return Convert (Interfaces.Integer_32 (Raw) * 1);
-      --  XXX 8 must be replaced by configured value
+      return
+        To_GA
+          (A0B.Types.Shift_Left
+             (To_U32 (A0B.Types.Integer_32 (Raw)),
+              Self.Accelerometer_Scale));
    end To_Gravitational_Acceleration;
 
    --  ---------------------

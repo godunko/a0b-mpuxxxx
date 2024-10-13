@@ -491,8 +491,8 @@ private
       INT_Pin    : not null access A0B.EXTI.External_Interrupt_Line'Class) is
      abstract new A0B.I2C.Device_Drivers_8.I2C_Device_Driver
                        (Controller => Controller,
-                        Address    => Address) with
-   record
+                        Address    => Address)
+     with record
       State                     : States  := Initial;
       Initialized               : Boolean := False;
       Data_Ready                : A0B.Callbacks.Callback;
@@ -501,7 +501,9 @@ private
       WHOAMI                    : A0B.Types.Unsigned_8;
 
       Accelerometer_Enabled     : Boolean := False;
+      Accelerometer_Scale       : Natural range 0 .. 3 := 0;
       Gyroscope_Enabled         : Boolean := False;
+      Gyroscope_Scale           : Natural range 0 .. 3 := 0;
       Temperature_Enabled       : Boolean := False;
 
       DMP_Enabled               : Boolean := False;
