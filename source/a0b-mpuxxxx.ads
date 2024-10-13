@@ -98,6 +98,12 @@ package A0B.MPUXXXX is
       Success  : in out Boolean);
    --  Enables data load from the sensor.
 
+   procedure Disable
+     (Self     : in out Abstract_MPU_Sensor'Class;
+      Finished : A0B.Callbacks.Callback;
+      Success  : in out Boolean);
+   --  Enables data load from the sensor.
+
 private
 
    use A0B.I2C.Device_Drivers_8;
@@ -480,6 +486,9 @@ private
       Enable_USER_CTRL_Enable,
       Enable_INT_Enable,
       Enable_FIFO_EN_Enable,
+      Disable_INT_ENABLE_Disable,
+      Disable_FIFO_EN_Disable,
+      Disable_USER_CTRL_Disable,
       Interrupt_INT_STATUS,
       Interrupt_FIFO_COUNT,
       Interrupt_FIFO_R_W,

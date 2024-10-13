@@ -114,14 +114,17 @@ package body A0B.MPUXXXX is
 
    procedure INT_ENABLE_Disable_Initiate
      (Self    : in out Abstract_MPU_Sensor'Class;
+      Enable  : Boolean;
       Success : in out Boolean);
 
    procedure FIFO_EN_Disable_Initiate
      (Self    : in out Abstract_MPU_Sensor'Class;
+      Enable  : Boolean;
       Success : in out Boolean);
 
    procedure USER_CTRL_Disable_Initiate
      (Self    : in out Abstract_MPU_Sensor'Class;
+      Enable  : Boolean;
       Success : in out Boolean);
 
    procedure Reset_Initiate
@@ -493,6 +496,28 @@ package body A0B.MPUXXXX is
          Success      => Success);
    end Device_Reset_Initiate;
 
+   -------------
+   -- Disable --
+   -------------
+
+   procedure Disable
+     (Self     : in out Abstract_MPU_Sensor'Class;
+      Finished : A0B.Callbacks.Callback;
+      Success  : in out Boolean) is
+   begin
+      if not Success or Self.State /= Ready then
+         Success := False;
+      end if;
+
+      Self.Finished := Finished;
+
+      Self.FIFO_Remaining_Size := 0;
+
+      Self.INT_ENABLE_Disable_Initiate
+        (Enable  => False,
+         Success => Success);
+   end Disable;
+
    ------------
    -- Enable --
    ------------
@@ -508,7 +533,9 @@ package body A0B.MPUXXXX is
 
       Self.Finished := Finished;
 
-      Self.INT_ENABLE_Disable_Initiate (Success);
+      Self.INT_ENABLE_Disable_Initiate
+        (Enable  => True,
+         Success => Success);
    end Enable;
 
    -------------------------
@@ -540,6 +567,7 @@ package body A0B.MPUXXXX is
 
    procedure FIFO_EN_Disable_Initiate
      (Self    : in out Abstract_MPU_Sensor'Class;
+      Enable  : Boolean;
       Success : in out Boolean)
    is
       FIFO_EN : Registers.FIFO_EN_Register
@@ -552,7 +580,10 @@ package body A0B.MPUXXXX is
          return;
       end if;
 
-      Self.State := Enable_FIFO_EN_Disable;
+      Self.State :=
+        (if Enable
+           then Enable_FIFO_EN_Disable
+           else Disable_FIFO_EN_Disable);
 
       FIFO_EN := (others => False);
 
@@ -709,7 +740,13 @@ package body A0B.MPUXXXX is
          --  Not enough data in the FIFO.
 
          Self.FIFO_Remaining_Size := 0;
-         Self.State               := Ready;
+
+         if Self.State = Interrupt_FIFO_COUNT then
+            --  Complete sequence when FIFO count has been loaded, otherwise
+            --  preserve state.
+
+            Self.State := Ready;
+         end if;
       end if;
    end FIFO_R_W_Initiate;
 
@@ -719,6 +756,7 @@ package body A0B.MPUXXXX is
 
    procedure INT_ENABLE_Disable_Initiate
      (Self    : in out Abstract_MPU_Sensor'Class;
+      Enable  : Boolean;
       Success : in out Boolean)
    is
       INT_ENABLE : Registers.INT_ENABLE_Register
@@ -731,7 +769,10 @@ package body A0B.MPUXXXX is
          return;
       end if;
 
-      Self.State := Enable_INT_ENABLE_Disable;
+      Self.State :=
+        (if Enable
+           then Enable_INT_ENABLE_Disable
+           else Disable_INT_ENABLE_Disable);
 
       INT_ENABLE := (others => False);
 
@@ -995,10 +1036,14 @@ package body A0B.MPUXXXX is
             end if;
 
          when Enable_INT_ENABLE_Disable =>
-            Self.FIFO_EN_Disable_Initiate (Success);
+            Self.FIFO_EN_Disable_Initiate
+              (Enable  => True,
+               Success => Success);
 
          when Enable_FIFO_EN_Disable =>
-            Self.USER_CTRL_Disable_Initiate (Success);
+            Self.USER_CTRL_Disable_Initiate
+              (Enable  => True,
+               Success => Success);
 
          when Enable_USER_CTRL_Disable =>
             Self.Reset_Initiate (Success);
@@ -1035,7 +1080,25 @@ package body A0B.MPUXXXX is
             Self.FIFO_R_W_Initiate (Success);
             --  Complete current FIFO read operation and
 
-         when others =>
+         when Disable_INT_ENABLE_Disable =>
+            Self.FIFO_EN_Disable_Initiate
+              (Enable  => False,
+               Success => Success);
+
+         when Disable_FIFO_EN_Disable =>
+            Self.USER_CTRL_Disable_Initiate
+              (Enable  => False,
+               Success => Success);
+
+         when Disable_USER_CTRL_Disable =>
+            Self.State := Ready;
+            Self.INT_Pin.Disable_Interrupt;
+
+            A0B.Callbacks.Emit_Once (Self.Finished);
+
+            return;
+
+         when Ready =>
             raise Program_Error;
       end case;
 
@@ -1441,6 +1504,7 @@ package body A0B.MPUXXXX is
 
    procedure USER_CTRL_Disable_Initiate
      (Self    : in out Abstract_MPU_Sensor'Class;
+      Enable  : Boolean;
       Success : in out Boolean)
    is
       USER_CTRL : Registers.USER_CTRL_Register
@@ -1453,7 +1517,10 @@ package body A0B.MPUXXXX is
          return;
       end if;
 
-      Self.State := Enable_USER_CTRL_Disable;
+      Self.State :=
+        (if Enable
+           then Enable_USER_CTRL_Disable
+           else Disable_USER_CTRL_Disable);
 
       USER_CTRL := (others => False);
 
