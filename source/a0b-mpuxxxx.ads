@@ -110,6 +110,31 @@ private
 
    package Registers is
 
+      --  A_OFFS_USR (MPU6050: 6-11/06-0B),
+      --  MPU6500 use different layout of registers with gaps (119-126/77-7E)
+
+      type MPU6050_A_OFFS_USR_Register is record
+         X_OFFS_USR : A0B.Types.Integer_16;
+         Y_OFFS_USR : A0B.Types.Integer_16;
+         Z_OFFS_USR : A0B.Types.Integer_16;
+      end record
+        with Pack,
+             Object_Size          => 48,
+             Bit_Order            => System.High_Order_First,
+             Scalar_Storage_Order => System.High_Order_First;
+
+      --  G_OFFS_USR (19-24/13-18)
+
+      type G_OFFS_USR_Register is record
+         X_OFFS_USR : A0B.Types.Integer_16;
+         Y_OFFS_USR : A0B.Types.Integer_16;
+         Z_OFFS_USR : A0B.Types.Integer_16;
+      end record
+        with Pack,
+             Object_Size          => 48,
+             Bit_Order            => System.High_Order_First,
+             Scalar_Storage_Order => System.High_Order_First;
+
       --  SMPLRT_DIV (25/19)
 
       type SMPLRT_DIV_Register is record
@@ -419,6 +444,23 @@ private
    MPU6500_WHOAMI : constant := 16#70#;
    MPU9250_WHOAMI : constant := 16#71#;
 
+   MPU6050_XA_OFFS_USRH           : constant Register_Address := 16#06#;
+   --  MPU6050_XA_OFFS_USRL           : constant Register_Address := 16#07#;
+   MPU6050_YA_OFFS_USRH           : constant Register_Address := 16#08#;
+   --  MPU6050_YA_OFFS_USRL           : constant Register_Address := 16#09#;
+   MPU6050_ZA_OFFS_USRH           : constant Register_Address := 16#0A#;
+   --  MPU6050_ZA_OFFS_USRL           : constant Register_Address := 16#0B#;
+   XA_OFFS_USR_Length             : constant                  := 2;
+   YA_OFFS_USR_Length             : constant                  := 2;
+   ZA_OFFS_USR_Length             : constant                  := 2;
+
+   XG_OFFS_USRH_Address           : constant Register_Address := 16#13#;
+   --  XG_OFFS_USRL_Address           : constant Register_Address := 16#14#;
+   --  YG_OFFS_USRH_Address           : constant Register_Address := 16#15#;
+   --  YG_OFFS_USRL_Address           : constant Register_Address := 16#16#;
+   --  ZG_OFFS_USRH_Address           : constant Register_Address := 16#17#;
+   --  ZG_OFFS_USRL_Address           : constant Register_Address := 16#18#;
+   G_OFFS_USR_Length              : constant                  := 6;
    SMPLRT_DIV_Address             : constant Register_Address := 16#19#;
    --  CONFIG_Address                 : constant Register_Address := 16#1A#;
    --  GYRO_CONFIG_Address            : constant Register_Address := 16#1B#;
@@ -454,6 +496,15 @@ private
    FIFO_R_W_Address               : constant Register_Address := 16#74#;
    WHO_AM_I_Address               : constant Register_Address := 16#75#;
 
+   MPU6500_XA_OFFS_USRH           : constant Register_Address := 16#77#;
+   MPU6500_XA_OFFS_USRL           : constant Register_Address := 16#78#;
+
+   MPU6500_YA_OFFS_USRH           : constant Register_Address := 16#7A#;
+   MPU6500_YA_OFFS_USRL           : constant Register_Address := 16#7B#;
+
+   MPU6500_ZA_OFFS_USRH           : constant Register_Address := 16#7D#;
+   MPU6500_ZA_OFFS_USRL           : constant Register_Address := 16#7E#;
+
    --  DMP_QUAT_OUT_Length            : constant                  := 16;
 
    type Raw_Data is record
@@ -466,6 +517,12 @@ private
      with Object_Size => 304;
 
    type Raw_Data_Array is array (Boolean) of Raw_Data;
+
+   type Calibration_Data is record
+      Accelerometer : Registers.MPU6050_A_OFFS_USR_Register;
+      Gyroscope     : Registers.G_OFFS_USR_Register;
+      --  Magnitomter
+   end record;
 
    type States is
      (Initial,
@@ -492,6 +549,14 @@ private
       Interrupt_INT_STATUS,
       Interrupt_FIFO_COUNT,
       Interrupt_FIFO_R_W,
+      Get_XA_OFFS_USR,
+      Get_YA_OFFS_USR,
+      Get_ZA_OFFS_USR,
+      Get_G_OFFS_USR,
+      Set_XA_OFFS_USR,
+      Set_YA_OFFS_USR,
+      Set_ZA_OFFS_USR,
+      Set_G_OFFS_USR,
       Ready);
 
    type Abstract_MPU_Sensor
@@ -539,6 +604,9 @@ private
       Finished                  : A0B.Callbacks.Callback;
       --  Callback to execute then operation finished.
 
+      Calibration_Buffer        : access Calibration_Data;
+      --  Application defined location of the calibration data.
+
       Transfer_Buffer           : A0B.I2C.Unsigned_8_Array (0 .. 31);
       --  Storage for IO operations:
       --   - firmware upload buffer
@@ -579,6 +647,14 @@ private
    function To_Angular_Velosity
      (Self : Abstract_MPU_Sensor'Class;
       Raw  : Interfaces.Integer_16) return Angular_Velosity;
+
+   procedure Get_XA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Set_XA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
 
    --  -------------------
    --  --  API for DMP  --

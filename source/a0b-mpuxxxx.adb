@@ -168,6 +168,30 @@ package body A0B.MPUXXXX is
      (Self    : in out Abstract_MPU_Sensor'Class;
       Success : in out Boolean);
 
+   procedure Get_YA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Get_ZA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Get_G_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Set_YA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Set_ZA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
+   procedure Set_G_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean);
+
    --  DMP_Bank_Size : constant := 256;
 
    --------------------
@@ -548,8 +572,6 @@ package body A0B.MPUXXXX is
    is
       pragma Warnings (Off, Success);
 
-      use type A0B.Types.Unsigned_16;
-
       Amount : constant Registers.FIFO_COUNT_Register
         with Import, Address => Self.Transfer_Buffer (0)'Address;
 
@@ -749,6 +771,133 @@ package body A0B.MPUXXXX is
          end if;
       end if;
    end FIFO_R_W_Initiate;
+
+   -----------------------------
+   -- Get_G_OFFS_USR_Initiate --
+   -----------------------------
+
+   procedure Get_G_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_32;
+
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. G_OFFS_USR_Length - 1)
+        with Import, Address => Self.Calibration_Buffer.Gyroscope'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Get_G_OFFS_USR;
+
+      Self.Read
+        (Address      => XG_OFFS_USRH_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Get_G_OFFS_USR_Initiate;
+
+   ------------------------------
+   -- Get_XA_OFFS_USR_Initiate --
+   ------------------------------
+
+   procedure Get_XA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_32;
+
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. XA_OFFS_USR_Length - 1)
+        with Import,
+             Address =>
+               Self.Calibration_Buffer.Accelerometer.X_OFFS_USR'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Get_XA_OFFS_USR;
+
+      Self.Read
+        (Address      =>
+           (if Self.Is_6500_9250
+              then MPU6500_XA_OFFS_USRH
+              else MPU6050_XA_OFFS_USRH),
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Get_XA_OFFS_USR_Initiate;
+
+   ------------------------------
+   -- Get_YA_OFFS_USR_Initiate --
+   ------------------------------
+
+   procedure Get_YA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_32;
+
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. YA_OFFS_USR_Length - 1)
+        with Import,
+             Address =>
+               Self.Calibration_Buffer.Accelerometer.Y_OFFS_USR'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Get_YA_OFFS_USR;
+
+      Self.Read
+        (Address      =>
+           (if Self.Is_6500_9250
+              then MPU6500_YA_OFFS_USRH
+              else MPU6050_YA_OFFS_USRH),
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Get_YA_OFFS_USR_Initiate;
+
+   ------------------------------
+   -- Get_ZA_OFFS_USR_Initiate --
+   ------------------------------
+
+   procedure Get_ZA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_32;
+
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. ZA_OFFS_USR_Length - 1)
+        with Import,
+             Address =>
+               Self.Calibration_Buffer.Accelerometer.Z_OFFS_USR'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Get_ZA_OFFS_USR;
+
+      Self.Read
+        (Address      =>
+           (if Self.Is_6500_9250
+              then MPU6500_ZA_OFFS_USRH
+              else MPU6050_ZA_OFFS_USRH),
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Get_ZA_OFFS_USR_Initiate;
 
    ---------------------------------
    -- INT_ENABLE_Disable_Initiate --
@@ -1098,6 +1247,39 @@ package body A0B.MPUXXXX is
 
             return;
 
+         when Get_XA_OFFS_USR =>
+            Self.Get_YA_OFFS_USR_Initiate (Success);
+
+         when Get_YA_OFFS_USR =>
+            Self.Get_ZA_OFFS_USR_Initiate (Success);
+
+         when Get_ZA_OFFS_USR =>
+            Self.Get_G_OFFS_USR_Initiate (Success);
+
+         when Get_G_OFFS_USR =>
+            Self.Calibration_Buffer := null;
+            Self.State              := Ready;
+
+            A0B.Callbacks.Emit_Once (Self.Finished);
+
+            return;
+
+         when Set_XA_OFFS_USR =>
+            Self.Set_YA_OFFS_USR_Initiate (Success);
+
+         when Set_YA_OFFS_USR =>
+            Self.Set_ZA_OFFS_USR_Initiate (Success);
+
+         when Set_ZA_OFFS_USR =>
+            Self.Set_G_OFFS_USR_Initiate (Success);
+
+         when Set_G_OFFS_USR =>
+            Self.State := Ready;
+
+            A0B.Callbacks.Emit_Once (Self.Finished);
+
+            return;
+
          when Ready =>
             raise Program_Error;
       end case;
@@ -1245,6 +1427,135 @@ package body A0B.MPUXXXX is
    begin
       Self.Data_Ready := Callback;
    end Set_Data_Ready_Callback;
+
+   -----------------------------
+   -- Set_G_OFFS_USR_Initiate --
+   -----------------------------
+
+   procedure Set_G_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_32;
+
+      Data   : Calibration_Data
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. G_OFFS_USR_Length - 1)
+        with Import, Address => Data.Gyroscope'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Set_G_OFFS_USR;
+
+      Self.Write
+        (Address      => XG_OFFS_USRH_Address,
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Set_G_OFFS_USR_Initiate;
+
+   ------------------------------
+   -- Set_XA_OFFS_USR_Initiate --
+   ------------------------------
+
+   procedure Set_XA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_32;
+
+      Data   : Calibration_Data
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. XA_OFFS_USR_Length - 1)
+        with Import, Address => Data.Accelerometer.X_OFFS_USR'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Set_XA_OFFS_USR;
+
+      Self.Write
+        (Address      =>
+           (if Self.Is_6500_9250
+              then MPU6500_XA_OFFS_USRH
+              else MPU6050_XA_OFFS_USRH),
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Set_XA_OFFS_USR_Initiate;
+
+   ------------------------------
+   -- Set_YA_OFFS_USR_Initiate --
+   ------------------------------
+
+   procedure Set_YA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_32;
+
+      Data   : Calibration_Data
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. YA_OFFS_USR_Length - 1)
+        with Import, Address => Data.Accelerometer.Y_OFFS_USR'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Set_YA_OFFS_USR;
+
+      Self.Write
+        (Address      =>
+           (if Self.Is_6500_9250
+              then MPU6500_YA_OFFS_USRH
+              else MPU6050_YA_OFFS_USRH),
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Set_YA_OFFS_USR_Initiate;
+
+   ------------------------------
+   -- Set_ZA_OFFS_USR_Initiate --
+   ------------------------------
+
+   procedure Set_ZA_OFFS_USR_Initiate
+     (Self    : in out Abstract_MPU_Sensor'Class;
+      Success : in out Boolean)
+   is
+      use type A0B.Types.Unsigned_32;
+
+      Data   : Calibration_Data
+        with Import, Address => Self.Transfer_Buffer'Address;
+      Buffer : A0B.I2C.Unsigned_8_Array (0 .. ZA_OFFS_USR_Length - 1)
+        with Import, Address => Data.Accelerometer.Z_OFFS_USR'Address;
+
+   begin
+      if not Success then
+         return;
+      end if;
+
+      Self.State := Set_ZA_OFFS_USR;
+
+      Self.Write
+        (Address      =>
+           (if Self.Is_6500_9250
+              then MPU6500_ZA_OFFS_USRH
+              else MPU6050_ZA_OFFS_USRH),
+         Buffer       => Buffer,
+         Status       => Self.Transfer_Status,
+         On_Completed => On_Operation_Finished_Callbacks.Create_Callback (Self),
+         Success      => Success);
+   end Set_ZA_OFFS_USR_Initiate;
 
    --------------------------------------
    -- Signal_Path_Reset_Delay_Initiate --
