@@ -22,7 +22,7 @@ with A0B.EXTI;
 with A0B.I2C.Device_Drivers_8;
 private with A0B.Time;
 private with A0B.Timer;
-private with A0B.Types;
+private with A0B.Types.Arrays;
 
 package A0B.MPUXXXX is
 
@@ -607,7 +607,7 @@ private
       Calibration_Buffer        : access Calibration_Data;
       --  Application defined location of the calibration data.
 
-      Transfer_Buffer           : A0B.I2C.Unsigned_8_Array (0 .. 31);
+      Transfer_Buffer           : A0B.Types.Arrays.Unsigned_8_Array (0 .. 31);
       --  Storage for IO operations:
       --   - firmware upload buffer
       --     - size should be power of two to avoid cross of bank boundary
@@ -622,6 +622,9 @@ private
       --     - questure data (4 bytes)
       Transfer_Status           : aliased
         A0B.I2C.Device_Drivers_8.Transaction_Status;
+
+      Communication_Failures : Natural := 0;
+      Interrupt_Failures     : Natural := 0;
    end record;
 
    procedure Internal_Initialize

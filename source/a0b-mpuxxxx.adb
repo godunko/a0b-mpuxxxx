@@ -308,7 +308,7 @@ package body A0B.MPUXXXX is
    is
       CONFIG   : CONFIG_Resgisters
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer   : A0B.I2C.Unsigned_8_Array
+      Buffer   : A0B.Types.Arrays.Unsigned_8_Array
                    (0 .. (if Self.Is_6500_9250 then 4 else 3))
         with Import, Address => Self.Transfer_Buffer'Address;
 
@@ -497,7 +497,7 @@ package body A0B.MPUXXXX is
    is
       PWR_MGMT_1 : Registers.PWR_MGMT_1_Register
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer     : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer     : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -594,7 +594,7 @@ package body A0B.MPUXXXX is
    is
       FIFO_EN : Registers.FIFO_EN_Register
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer  : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer  : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -627,7 +627,7 @@ package body A0B.MPUXXXX is
    is
       FIFO_EN :  Registers.FIFO_EN_Register
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer    : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer    : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -736,7 +736,7 @@ package body A0B.MPUXXXX is
    is
       use type A0B.Types.Unsigned_16;
 
-      Buffer : A0B.I2C.Unsigned_8_Array
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array
                  (0 .. A0B.Types.Unsigned_32 (Self.FIFO_Packet_Size - 1))
         with Import, Address => Self.Transfer_Buffer'Address;
 
@@ -782,7 +782,7 @@ package body A0B.MPUXXXX is
    is
       use type A0B.Types.Unsigned_32;
 
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. G_OFFS_USR_Length - 1)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. G_OFFS_USR_Length - 1)
         with Import, Address => Self.Calibration_Buffer.Gyroscope'Address;
 
    begin
@@ -810,7 +810,7 @@ package body A0B.MPUXXXX is
    is
       use type A0B.Types.Unsigned_32;
 
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. XA_OFFS_USR_Length - 1)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. XA_OFFS_USR_Length - 1)
         with Import,
              Address =>
                Self.Calibration_Buffer.Accelerometer.X_OFFS_USR'Address;
@@ -843,7 +843,7 @@ package body A0B.MPUXXXX is
    is
       use type A0B.Types.Unsigned_32;
 
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. YA_OFFS_USR_Length - 1)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. YA_OFFS_USR_Length - 1)
         with Import,
              Address =>
                Self.Calibration_Buffer.Accelerometer.Y_OFFS_USR'Address;
@@ -876,7 +876,7 @@ package body A0B.MPUXXXX is
    is
       use type A0B.Types.Unsigned_32;
 
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. ZA_OFFS_USR_Length - 1)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. ZA_OFFS_USR_Length - 1)
         with Import,
              Address =>
                Self.Calibration_Buffer.Accelerometer.Z_OFFS_USR'Address;
@@ -910,7 +910,7 @@ package body A0B.MPUXXXX is
    is
       INT_ENABLE : Registers.INT_ENABLE_Register
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer     : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer     : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -943,7 +943,7 @@ package body A0B.MPUXXXX is
    is
       INT    : INT_Registers
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. 1)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. 1)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -984,7 +984,7 @@ package body A0B.MPUXXXX is
 
       INT_STATUS : constant Registers.INT_STATUS_Register
         with Import, Address => Self.Transfer_Buffer (0)'Address;
-      Buffer     : A0B.I2C.Unsigned_8_Array (0 .. FIFO_COUNT_Length - 1)
+      Buffer     : A0B.Types.Arrays.Unsigned_8_Array (0 .. FIFO_COUNT_Length - 1)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -1030,7 +1030,7 @@ package body A0B.MPUXXXX is
      (Self    : in out Abstract_MPU_Sensor'Class;
       Success : in out Boolean)
    is
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -1090,6 +1090,8 @@ package body A0B.MPUXXXX is
       if Self.State /= Ready then
          --  Busy, return immidiately.
 
+         Self.Interrupt_Failures := @ + 1;
+
          return;
       end if;
 
@@ -1123,6 +1125,8 @@ package body A0B.MPUXXXX is
             --  to work properly after such failure.
 
             Self.State := Ready;
+
+            Self.Communication_Failures := @ + 1;
 
             return;
 
@@ -1301,7 +1305,7 @@ package body A0B.MPUXXXX is
    is
       PWR_MGMT : PWR_MGMT_Registers
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer   : A0B.I2C.Unsigned_8_Array (0 .. 1)
+      Buffer   : A0B.Types.Arrays.Unsigned_8_Array (0 .. 1)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -1394,7 +1398,7 @@ package body A0B.MPUXXXX is
 
       USER_CTRL :  Registers.USER_CTRL_Register
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer    : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer    : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -1440,7 +1444,7 @@ package body A0B.MPUXXXX is
 
       Data   : Calibration_Data
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. G_OFFS_USR_Length - 1)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. G_OFFS_USR_Length - 1)
         with Import, Address => Data.Gyroscope'Address;
 
    begin
@@ -1470,7 +1474,7 @@ package body A0B.MPUXXXX is
 
       Data   : Calibration_Data
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. XA_OFFS_USR_Length - 1)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. XA_OFFS_USR_Length - 1)
         with Import, Address => Data.Accelerometer.X_OFFS_USR'Address;
 
    begin
@@ -1503,7 +1507,7 @@ package body A0B.MPUXXXX is
 
       Data   : Calibration_Data
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. YA_OFFS_USR_Length - 1)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. YA_OFFS_USR_Length - 1)
         with Import, Address => Data.Accelerometer.Y_OFFS_USR'Address;
 
    begin
@@ -1536,7 +1540,7 @@ package body A0B.MPUXXXX is
 
       Data   : Calibration_Data
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. ZA_OFFS_USR_Length - 1)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. ZA_OFFS_USR_Length - 1)
         with Import, Address => Data.Accelerometer.Z_OFFS_USR'Address;
 
    begin
@@ -1590,7 +1594,7 @@ package body A0B.MPUXXXX is
    is
       SIGNAL_PATH_RESET : Registers.SIGNAL_PATH_RESET_Register
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer            : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer            : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -1820,7 +1824,7 @@ package body A0B.MPUXXXX is
    is
       USER_CTRL : Registers.USER_CTRL_Register
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer    : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer    : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -1853,7 +1857,7 @@ package body A0B.MPUXXXX is
    is
       USER_CTRL : Registers.USER_CTRL_Register
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer    : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer    : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -1886,7 +1890,7 @@ package body A0B.MPUXXXX is
    is
       PWR_MGMT_1 : Registers.PWR_MGMT_1_Register
         with Import, Address => Self.Transfer_Buffer'Address;
-      Buffer     : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer     : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin
@@ -1938,7 +1942,7 @@ package body A0B.MPUXXXX is
       WHOAMI  : A0B.Types.Unsigned_8;
       Success : in out Boolean)
    is
-      Buffer : A0B.I2C.Unsigned_8_Array (0 .. 0)
+      Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. 0)
         with Import, Address => Self.Transfer_Buffer'Address;
 
    begin

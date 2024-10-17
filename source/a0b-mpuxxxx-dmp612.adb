@@ -15,7 +15,8 @@ package body A0B.MPUXXXX.DMP612 is
 
    Firmware_Size : constant := 3_062;
 
-   Firmware_Binary : constant A0B.I2C.Unsigned_8_Array (0 .. Firmware_Size - 1) :=
+   Firmware_Binary : constant A0B.Types.Arrays.Unsigned_8_Array
+     (0 .. Firmware_Size - 1) :=
      (
       --  bank # 0
       16#00#, 16#00#, 16#70#, 16#00#, 16#00#, 16#00#, 16#00#, 16#24#,
@@ -502,11 +503,11 @@ package body A0B.MPUXXXX.DMP612 is
    CFG_6_Address             : constant := 2753;  --  AC1 | FIFO_RATE_DIV_EN = 2756
    CFG_6_Length              : constant := 12;
 
-   Firmware_Buffer : A0B.I2C.Unsigned_8_Array (0 .. Firmware_Size - 1);
+   Firmware_Buffer : A0B.Types.Arrays.Unsigned_8_Array (0 .. Firmware_Size - 1);
 
    procedure Write_DMP_Memory
      (Address : Interfaces.Unsigned_32;
-      Data    : A0B.I2C.Unsigned_8_Array);
+      Data    : A0B.Types.Arrays.Unsigned_8_Array);
 
    ---------------------
    -- Enable_Features --
@@ -531,7 +532,7 @@ package body A0B.MPUXXXX.DMP612 is
       declare
          D_0_104   : Registers.GYRO_SF_Register :=
            (GYRO_SF => GYRO_SF);
-         D_0_104_B : A0B.I2C.Unsigned_8_Array (1 .. D_0_104_Length)
+         D_0_104_B : A0B.Types.Arrays.Unsigned_8_Array (1 .. D_0_104_Length)
            with Import, Address => D_0_104'Address;
 
       begin
@@ -542,7 +543,7 @@ package body A0B.MPUXXXX.DMP612 is
       --  Send sensor data to the FIFO.
 
       declare
-         RAW_DATA_EN : A0B.I2C.Unsigned_8_Array (1 .. CFG_15_Length) :=
+         RAW_DATA_EN : A0B.Types.Arrays.Unsigned_8_Array (1 .. CFG_15_Length) :=
            (16#A3#, 16#A3#, 16#A3#, 16#A3#, 16#A3#, 16#A3#, 16#A3#, 16#A3#,
             16#A3#, 16#A3#);
 
@@ -570,7 +571,7 @@ package body A0B.MPUXXXX.DMP612 is
 
       if Gyroscope /= None then
          declare
-            CFG_GYRO_RAW_DATA : A0B.I2C.Unsigned_8_Array
+            CFG_GYRO_RAW_DATA : A0B.Types.Arrays.Unsigned_8_Array
                                   (1 .. CFG_GYRO_RAW_DATA_Length);
 
          begin
@@ -586,7 +587,7 @@ package body A0B.MPUXXXX.DMP612 is
       end if;
 
       declare
-         CFG_MOTION_BIAS : A0B.I2C.Unsigned_8_Array
+         CFG_MOTION_BIAS : A0B.Types.Arrays.Unsigned_8_Array
                              (1 .. CFG_MOTION_BIAS_Length);
 
       begin
@@ -609,7 +610,7 @@ package body A0B.MPUXXXX.DMP612 is
       Self.DMP_Quaternion_Enabled := False;
 
       declare
-         CFG_LP_QUAT : A0B.I2C.Unsigned_8_Array (1 .. CFG_LP_QUAT_Length);
+         CFG_LP_QUAT : A0B.Types.Arrays.Unsigned_8_Array (1 .. CFG_LP_QUAT_Length);
 
       begin
          if Quaternion = Quaternion_3 then
@@ -625,7 +626,7 @@ package body A0B.MPUXXXX.DMP612 is
       end;
 
       declare
-         CFG_8 : A0B.I2C.Unsigned_8_Array (1 .. CFG_8_Length);
+         CFG_8 : A0B.Types.Arrays.Unsigned_8_Array (1 .. CFG_8_Length);
 
       begin
          if Quaternion = Quaternion_6 then
@@ -662,9 +663,9 @@ package body A0B.MPUXXXX.DMP612 is
       D_0_22   : constant Registers.FIFO_RATE_DIV_Register :=
         (FIFO_RATE_DIV =>
            (DMP_Sample_Rate / Interfaces.Integer_16 (FIFO_Rate) - 1));
-      D_0_22_B : constant A0B.I2C.Unsigned_8_Array (1 .. 2)
+      D_0_22_B : constant A0B.Types.Arrays.Unsigned_8_Array (1 .. 2)
         with Import, Address => D_0_22'Address;
-      CFG_6    : constant A0B.I2C.Unsigned_8_Array (1 .. CFG_6_Length) :=
+      CFG_6    : constant A0B.Types.Arrays.Unsigned_8_Array (1 .. CFG_6_Length) :=
         (DINAFE, DINAF2, DINAAB, 16#C4#, DINAAA, DINAF1, DINADF, DINADF,
          16#BB#, 16#AF#, DINADF, DINADF);
 
@@ -678,7 +679,7 @@ package body A0B.MPUXXXX.DMP612 is
    ------------------------
 
    procedure Set_Interrupt_Mode (Mode : Interrupt_Mode) is
-      B : A0B.I2C.Unsigned_8_Array (1 .. CFG_FIFO_ON_EVENT_Length);
+      B : A0B.Types.Arrays.Unsigned_8_Array (1 .. CFG_FIFO_ON_EVENT_Length);
 
    begin
       case Mode is
@@ -785,7 +786,7 @@ package body A0B.MPUXXXX.DMP612 is
 
    procedure Write_DMP_Memory
      (Address : Interfaces.Unsigned_32;
-      Data    : A0B.I2C.Unsigned_8_Array) is
+      Data    : A0B.Types.Arrays.Unsigned_8_Array) is
    begin
       Firmware_Buffer (Address .. Address + Data'Length - 1) := Data;
       --
